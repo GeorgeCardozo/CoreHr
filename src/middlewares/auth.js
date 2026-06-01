@@ -1,0 +1,52 @@
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ message: 'Acceso denegado: Token no proporcionado' });
+  }
+
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    return res.status(401).json({ message: 'Acceso denegado: Formato de token inválido. Debe ser Bearer <token>' });
+  }
+
+  const token = parts[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // req.user tendrá { id, rol_id }
+    next();
+  } catch (error) {
+    return res.status(403).json({ message: 'Acceso denegado: Token inválido o expirado' });
+  }
+};
+
+const authorize = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user || !req.user.rol_id) {
+      return res.status(403).json({ message: 'Acceso denegado: Rol no identificado' });
+    }
+
+    if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.rol_id)) {
+      return res.status(403).json({ message: 'Acceso denegado: Permisos insuficientes' });
+    }
+
+    next();
+  };
+};
+
+const verificarAdmin = (req, res, next) => {
+  if (!req.user || req.user.rol_id !== 1) {
+    return res.status(403).json({ message: 'Acceso denegado: Se requieren permisos de administrador' });
+  }
+  next();
+};
+
+module.exports = {
+  verifyToken,
+  authorize,
+  verificarAdmin,
+};
