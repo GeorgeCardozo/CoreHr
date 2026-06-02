@@ -10,6 +10,8 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const [showPassword, setShowPassword] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -27,90 +29,158 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-slate-950 text-slate-100">
-      {/* Panel Izquierdo: Diseño Split de Esmeralda Oscuro Corporativo */}
-      <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-emerald-950 via-teal-900 to-slate-950 p-12 flex-col justify-between relative overflow-hidden">
-        {/* Efectos difusos de luz de fondo */}
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl"></div>
-
-        <div className="relative z-10">
-          <span className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
-            CoreRRHH
-          </span>
-        </div>
-
-        <div className="relative z-10 space-y-6 max-w-lg">
-          <h1 className="text-4xl font-extrabold tracking-tight leading-tight">
-            Gestión inteligente de personal y contratos.
-          </h1>
-          <p className="text-emerald-300/80 text-lg">
-            Accede al portal para gestionar contratos de trabajo, consultar tu perfil de empleado y automatizar documentación laboral de forma segura.
-          </p>
-        </div>
-
-        <div className="relative z-10 text-xs text-emerald-400/60">
-          © 2026 CoreRRHH. Todos los derechos reservados.
-        </div>
-      </div>
-
-      {/* Panel Derecho: Formulario Limpio */}
-      <div className="flex-1 flex items-center justify-center p-8 sm:p-12 bg-slate-900">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center md:text-left">
-            <h2 className="text-3xl font-bold text-white tracking-tight">Iniciar Sesión</h2>
-            <p className="text-slate-400 text-sm mt-2">
-              Ingresa tus credenciales para acceder a la plataforma.
-            </p>
+    <div className="bg-background text-on-surface m-0 p-0 min-h-screen w-full flex">
+      <main className="flex min-h-screen w-full">
+        {/* Left Pane: Institutional Identity */}
+        <section className="hidden lg:flex lg:w-1/2 bg-primary relative items-center justify-center p-12 overflow-hidden">
+          {/* Background Abstract Pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-secondary-container blur-[120px]"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-primary-fixed blur-[100px]"></div>
           </div>
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg p-3">
-              {error}
+          
+          {/* Glassmorphism Overlay Card */}
+          <div className="glass-card rounded-xl p-12 max-w-xl z-10 animate-fade-in">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-[24px]">school</span>
+              </div>
+              <span className="font-label-caps text-label-caps text-on-primary tracking-widest uppercase">Portal Institucional</span>
             </div>
-          )}
+            <h1 className="font-display-quote text-display-quote text-on-primary italic mb-6 leading-tight">
+              "Empowering Education & Talent"
+            </h1>
+            <div className="pt-6 border-t border-white/20">
+              <p className="font-body-md text-body-md text-on-primary/80 tracking-wide">
+                Gimnasio Los Arrayanes Bilingüe
+              </p>
+            </div>
+          </div>
+          
+          {/* Footer Logo in Left Pane */}
+          <div className="absolute bottom-12 left-12 flex items-center gap-2">
+            <span className="font-headline-md text-headline-md font-bold text-on-primary">CoreRRHH</span>
+          </div>
+        </section>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="correo">
-                Correo Electrónico
-              </label>
-              <input
-                id="correo"
-                type="email"
-                required
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                placeholder="nombre@empresa.com"
-                value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
-              />
+        {/* Right Pane: Functional Login */}
+        <section className="w-full lg:w-1/2 bg-surface-container-lowest flex flex-col items-center justify-center px-6 lg:px-24">
+          <div className="w-full max-w-md space-y-10">
+            
+            {/* Brand & Header */}
+            <div className="text-center lg:text-left">
+              <div className="flex items-center justify-center lg:justify-start gap-3 mb-8">
+                <img 
+                  alt="Logo" 
+                  className="w-12 h-12 rounded-lg" 
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHbhFTBXFsPa9oa4pNwrqVmB5RdBGTCTRZMmG3d_zkkrQRxnOQP50TMjBt_uo_x5foSRRrb5-YpCov-PFatdU19JNhz3f-VqSmpAzXPj_KnVA4YE6r5sTN6twa7U_OpQZ_jkH0k_4ljWgyQFNo5A2T5G8QC2NAiuVo5N8wquSv3UF1PcS5BOmZodVPTuU_1Wr6__sKqNDAA5aiHiIkhr6tsxNXPJAG_J9FJR46kTNDH1OnF0mLMBGPQZZ1zLSx4qNzDup7AmwzUHqt"
+                />
+                <div className="flex flex-col">
+                  <span className="font-headline-md text-headline-md text-primary leading-none">CoreRRHH</span>
+                  <span className="font-label-caps text-label-caps text-on-surface-variant mt-1">Gimnasio Los Arrayanes</span>
+                </div>
+              </div>
+              <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2">Bienvenido de nuevo</h2>
+              <p className="font-body-md text-body-md text-on-surface-variant">Inicie sesión para gestionar su talento institucional.</p>
             </div>
 
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="contrasena">
-                Contraseña
-              </label>
-              <input
-                id="contrasena"
-                type="password"
-                required
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                placeholder="••••••••"
-                value={contrasena}
-                onChange={(e) => setContrasena(e.target.value)}
-              />
-            </div>
+            {/* Login Form */}
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-sm rounded-lg p-3">
+                  {error}
+                </div>
+              )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg py-3 px-4 shadow-lg hover:shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Validando...' : 'Ingresar'}
-            </button>
-          </form>
-        </div>
-      </div>
+              {/* Email Field */}
+              <div className="space-y-2">
+                <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase ml-1" htmlFor="email">
+                  Correo Institucional
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant group-focus-within:text-primary transition-colors">
+                    <span className="material-symbols-outlined text-[20px]">alternate_email</span>
+                  </div>
+                  <input 
+                    className="block w-full pl-10 pr-3 py-3 bg-surface-bright border border-surface-dim rounded-lg text-on-surface placeholder:text-outline-variant focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200" 
+                    id="email" 
+                    name="email" 
+                    placeholder="usuario@arrayanes.edu.co" 
+                    type="email"
+                    required
+                    value={correo}
+                    onChange={(e) => setCorreo(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center px-1">
+                  <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase" htmlFor="password">
+                    Contraseña
+                  </label>
+                  <a className="font-label-caps text-label-caps text-tertiary-container hover:text-primary transition-colors" href="#">
+                    ¿Olvidó su contraseña?
+                  </a>
+                </div>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant group-focus-within:text-primary transition-colors">
+                    <span className="material-symbols-outlined text-[20px]">lock</span>
+                  </div>
+                  <input 
+                    className="block w-full pl-10 pr-12 py-3 bg-surface-bright border border-surface-dim rounded-lg text-on-surface placeholder:text-outline-variant focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200" 
+                    id="password" 
+                    name="password" 
+                    placeholder="••••••••••••" 
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={contrasena}
+                    onChange={(e) => setContrasena(e.target.value)}
+                  />
+                  <button 
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-primary transition-colors cursor-pointer" 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {showPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button 
+                className="w-full bg-primary text-on-primary font-headline-md text-headline-md py-4 rounded-lg hover:bg-primary-container transition-all duration-300 transform active:scale-[0.98] shadow-lg shadow-primary/10 cursor-pointer flex items-center justify-center gap-2" 
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+                    <span>Validando...</span>
+                  </>
+                ) : (
+                  'Iniciar Sesión'
+                )}
+              </button>
+
+            </form>
+
+            {/* Footer Disclaimer */}
+            <div className="pt-8 text-center">
+              <p className="font-body-md text-body-md text-on-surface-variant text-sm">
+                ¿Problemas para acceder? Contacte a{' '}
+                <a className="text-primary font-semibold hover:underline decoration-2 underline-offset-4" href="mailto:soporte@arrayanes.edu.co">
+                  Soporte TI
+                </a>
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 };

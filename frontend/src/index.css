@@ -1,9 +1,58 @@
 @import "tailwindcss";
 
-/* Estilos globales personalizados adicionales pueden agregarse aquí */
+@theme {
+  --color-primary: #004532;
+  --color-secondary: #006c49;
+  --color-background: #f7f9fb;
+  --color-surface-dim: #d8dadc;
+  --color-surface-bright: #f7f9fb;
+  --color-surface-container: #eceef0;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #3f4944;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #065f46;
+  --color-on-primary-container: #8bd6b7;
+  --color-secondary-container: #6cf8bb;
+  --color-primary-fixed: #a6f2d1;
+  --color-primary-fixed-dim: #8bd6b6;
+  --color-tertiary: #343c51;
+  --color-tertiary-container: #4b5369;
+  --color-on-tertiary-container: #bfc7e1;
+  --color-on-tertiary: #ffffff;
+  --color-outline-variant: #bec9c2;
+  --color-outline: #6f7973;
+
+  --font-display-quote: "Newsreader", serif;
+  --font-label-caps: "Inter", sans-serif;
+  --font-headline-md: "Inter", sans-serif;
+  --font-headline-lg: "Inter", sans-serif;
+  --font-body-md: "Inter", sans-serif;
+  --font-body-lg: "Inter", sans-serif;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
-  background-color: #f8fafc;
-  color: #0f172a;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.emerald-glow:focus-within {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
 }
