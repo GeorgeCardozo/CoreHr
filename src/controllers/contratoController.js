@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
 const crearContrato = async (req, res) => {
-  const { empleado_id, tipo_contrato, fecha_inicio, fecha_fin, salario, estado } = req.body;
+  const { empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado } = req.body;
 
   if (!empleado_id || !tipo_contrato || !fecha_inicio || salario === undefined) {
     return res.status(400).json({
@@ -11,13 +11,14 @@ const crearContrato = async (req, res) => {
 
   try {
     const queryText = `
-      INSERT INTO contratos (empleado_id, tipo_contrato, fecha_inicio, fecha_fin, salario, estado)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO contratos (empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
     const values = [
       empleado_id, 
       tipo_contrato, 
+      cargo || null,
       fecha_inicio, 
       fecha_fin || null, 
       salario, 
@@ -49,10 +50,16 @@ const obtenerContratos = async (req, res) => {
 
   try {
     let result;
+    const queryText = `
+      SELECT c.*, e.nombres, e.apellidos 
+      FROM contratos c 
+      JOIN empleados e ON c.empleado_id = e.id
+    `;
+    
     if (empleado_id) {
-      result = await db.query('SELECT * FROM contratos WHERE empleado_id = $1', [empleado_id]);
+      result = await db.query(`${queryText} WHERE c.empleado_id = $1 ORDER BY c.id DESC`, [empleado_id]);
     } else {
-      result = await db.query('SELECT * FROM contratos');
+      result = await db.query(`${queryText} ORDER BY c.id DESC`);
     }
 
     return res.status(200).json({

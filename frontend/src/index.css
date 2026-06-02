@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Estilos globales personalizados adicionales pueden agregarse aquí */
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+}

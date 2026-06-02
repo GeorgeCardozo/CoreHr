@@ -91,7 +91,21 @@ const registro = async (req, res) => {
   }
 };
 
+const listarUsuarios = async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, correo FROM usuarios ORDER BY id ASC');
+    return res.status(200).json({
+      message: 'Usuarios obtenidos exitosamente',
+      usuarios: result.rows
+    });
+  } catch (error) {
+    console.error('Error en authController.listarUsuarios:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al listar usuarios' });
+  }
+};
+
 module.exports = {
   login,
-  registro
+  registro,
+  listarUsuarios
 };
