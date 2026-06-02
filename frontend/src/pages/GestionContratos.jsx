@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { obtenerEmpleados, obtenerContratos, crearContrato } from '../services/api';
+import { obtenerEmpleados, obtenerContratos, crearContrato, actualizarContrato } from '../services/api';
 
 const GestionContratos = () => {
   const [empleados, setEmpleados] = useState([]);
@@ -19,6 +19,10 @@ const GestionContratos = () => {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+
+  // Estados para Edición
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingContractId, setEditingContractId] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +50,57 @@ const GestionContratos = () => {
     });
   };
 
+  const handleStartEdit = (contrato) => {
+    setIsEditing(true);
+    setEditingContractId(contrato.id);
+    
+    let formattedInicio = '';
+    if (contrato.fecha_inicio) {
+      const d = new Date(contrato.fecha_inicio);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      formattedInicio = `${year}-${month}-${day}`;
+    }
+    
+    let formattedFin = '';
+    if (contrato.fecha_fin) {
+      const d = new Date(contrato.fecha_fin);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      formattedFin = `${year}-${month}-${day}`;
+    }
+
+    setFormData({
+      empleado_id: contrato.empleado_id.toString(),
+      tipo_contrato: contrato.tipo_contrato,
+      cargo: contrato.cargo || '',
+      fecha_inicio: formattedInicio,
+      fecha_fin: formattedFin,
+      salario: contrato.salario.toString(),
+      estado: contrato.estado || 'Activo'
+    });
+    setError('');
+    setSuccess('');
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditingContractId(null);
+    setFormData({
+      empleado_id: '',
+      tipo_contrato: '',
+      cargo: '',
+      fecha_inicio: '',
+      fecha_fin: '',
+      salario: '',
+      estado: 'Activo'
+    });
+    setError('');
+    setSuccess('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -63,17 +118,23 @@ const GestionContratos = () => {
     };
 
     try {
-      await crearContrato(payload);
-      setSuccess('Contrato laboral asignado con éxito.');
-      setFormData({
-        empleado_id: '',
-        tipo_contrato: '',
-        cargo: '',
-        fecha_inicio: '',
-        fecha_fin: '',
-        salario: '',
-        estado: 'Activo'
-      });
+      if (isEditing) {
+        await actualizarContrato(editingContractId, payload);
+        setSuccess('Contrato laboral actualizado con éxito.');
+        handleCancelEdit();
+      } else {
+        await crearContrato(payload);
+        setSuccess('Contrato laboral asignado con éxito.');
+        setFormData({
+          empleado_id: '',
+          tipo_contrato: '',
+          cargo: '',
+          fecha_inicio: '',
+          fecha_fin: '',
+          salario: '',
+          estado: 'Activo'
+        });
+      }
       // Recargar contratos
       const conData = await obtenerContratos();
       setContratos(conData.contratos || []);
@@ -136,7 +197,7 @@ const GestionContratos = () => {
             {/* Formulario de Asignación (Bento Grid Style) */}
             <div className="lg:col-span-1 bg-slate-950/40 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 backdrop-blur-md">
               <h2 className="text-lg font-semibold border-b border-slate-800 pb-2 text-emerald-400">
-                Asignar Contrato
+                {isEditing ? 'Editar Contrato' : 'Asignar Contrato'}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -267,10 +328,19 @@ const GestionContratos = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg py-2.5 px-4 shadow-lg hover:shadow-emerald-500/20 transition-all text-sm disabled:opacity-50"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg py-2.5 px-4 shadow-lg hover:shadow-emerald-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
                 >
-                  {submitting ? 'Guardando...' : 'Asignar Contrato'}
+                  {submitting ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Asignar Contrato'}
                 </button>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 font-semibold rounded-lg py-2.5 px-4 transition-all text-sm cursor-pointer"
+                  >
+                    Cancelar Edición
+                  </button>
+                )}
               </form>
             </div>
 
@@ -297,6 +367,7 @@ const GestionContratos = () => {
                           <th className="py-3 px-6 text-right">Salario Base</th>
                           <th className="py-3 px-6">Fecha Inicio</th>
                           <th className="py-3 px-6">Estado</th>
+                          <th className="py-3 px-6 text-center">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/40 text-sm">
@@ -327,6 +398,14 @@ const GestionContratos = () => {
                               }`}>
                                 {contrato.estado}
                               </span>
+                            </td>
+                            <td className="py-4 px-6 text-center">
+                              <button
+                                onClick={() => handleStartEdit(contrato)}
+                                className="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs py-1 px-2.5 rounded-lg shadow-md hover:shadow-sky-500/10 transition-all cursor-pointer"
+                              >
+                                Editar
+                              </button>
                             </td>
                           </tr>
                         ))}

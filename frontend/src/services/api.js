@@ -54,4 +54,9 @@ export const eliminarEmpleado = async (id) => {
   return response.data;
 };
 
+export const actualizarContrato = async (id, datos) => {
+  const response = await api.put(`/contratos/${id}`, datos);
+  return response.data;
+};
+
 export default api;
