@@ -12,11 +12,14 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          // Obtener el perfil del empleado logueado para validar la sesión
           const response = await api.get('/empleados/perfil');
+          const perfil = response.data.perfil;
           setUser({
             token,
-            profile: response.data.perfil,
+            profile: perfil,
+            id: perfil.usuario_id,
+            rol_id: perfil.rol_id,
+            correo: perfil.correo
           });
         } catch (error) {
           console.error('Sesión inválida o expirada:', error);

@@ -1,12 +1,29 @@
 const db = require('../config/db');
 const bcrypt = require('bcrypt');
+const PDFDocument = require('pdfkit');
 
 const obtenerPerfil = async (req, res) => {
   // El usuario_id viene decodificado en el token dentro de req.user.id
   const usuarioId = req.user.id;
 
   try {
-    const result = await db.query('SELECT * FROM empleados WHERE usuario_id = $1', [usuarioId]);
+    const result = await db.query(
+      `SELECT 
+        e.*, 
+        u.correo, 
+        u.rol_id,
+        c.cargo,
+        c.tipo_contrato,
+        c.salario,
+        c.fecha_inicio AS contrato_fecha_inicio,
+        c.fecha_fin AS contrato_fecha_fin,
+        c.estado AS contrato_estado
+       FROM empleados e 
+       JOIN usuarios u ON e.usuario_id = u.id 
+       LEFT JOIN contratos c ON e.id = c.empleado_id AND c.estado = 'Activo'
+       WHERE e.usuario_id = $1`, 
+      [usuarioId]
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Perfil de empleado no encontrado' });
@@ -190,10 +207,142 @@ const eliminarEmpleado = async (req, res) => {
   }
 };
 
+const generarCertificado = async (req, res) => {
+  const usuarioId = req.user.id;
+
+  try {
+    // 1. Obtener la información del empleado y su contrato activo
+    const queryText = `
+      SELECT 
+        e.nombres, 
+        e.apellidos, 
+        e.documento_identidad, 
+        e.telefono,
+        e.fecha_ingreso,
+        c.cargo, 
+        c.tipo_contrato, 
+        c.salario
+      FROM empleados e
+      LEFT JOIN contratos c ON e.id = c.empleado_id AND c.estado = 'Activo'
+      WHERE e.usuario_id = $1
+    `;
+    const result = await db.query(queryText, [usuarioId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Perfil de empleado no encontrado' });
+    }
+
+    const emp = result.rows[0];
+
+    if (!emp.cargo) {
+      return res.status(404).json({ 
+        message: 'No se encontró un contrato activo asignado para generar el certificado laboral.' 
+      });
+    }
+
+    // 2. Inicializar PDF
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+
+    // Configurar cabeceras de respuesta
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=certificado_laboral.pdf');
+
+    // Transmitir PDF a la respuesta
+    doc.pipe(res);
+
+    // 3. Diseñar el PDF
+    // Membrete / Encabezado
+    doc
+      .fillColor('#065f46') // Emerald 800
+      .fontSize(22)
+      .font('Helvetica-Bold')
+      .text('GIMNASIO LOS ARRAYANES BILINGÜE', { align: 'center' });
+
+    doc
+      .fillColor('#475569') // Slate 600
+      .fontSize(10)
+      .font('Helvetica')
+      .text('Educación de Excelencia y Valores para el Futuro', { align: 'center' })
+      .text('Bogotá D.C., Colombia | Tel: (601) 745-9000', { align: 'center' });
+
+    doc.moveDown(2);
+
+    // Separador
+    doc
+      .strokeColor('#e2e8f0')
+      .lineWidth(1)
+      .moveTo(50, doc.y)
+      .lineTo(545, doc.y)
+      .stroke();
+
+    doc.moveDown(3);
+
+    // Título del documento
+    doc
+      .fillColor('#0f172a') // Slate 900
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .text('CERTIFICACIÓN LABORAL', { align: 'center' });
+
+    doc.moveDown(2);
+
+    // Fecha actual para el documento
+    const opcionesFecha = { year: 'numeric', month: 'long', day: 'numeric' };
+    const fechaActualStr = new Date().toLocaleDateString('es-CO', opcionesFecha);
+
+    // Cuerpo del certificado
+    const salarioFormateado = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(emp.salario);
+
+    const fechaIngresoFormateada = new Date(emp.fecha_ingreso).toLocaleDateString('es-CO', opcionesFecha);
+
+    const cuerpoTexto = `El Gimnasio Los Arrayanes Bilingüe certifica que ${emp.nombres} ${emp.apellidos}, identificado(a) con documento ${emp.documento_identidad}, labora en nuestra institución con un contrato ${emp.tipo_contrato} ocupando el cargo de ${emp.cargo}.\n\n` +
+      `Su fecha de ingreso a la institución fue el ${fechaIngresoFormateada} y actualmente devenga un salario básico mensual de ${salarioFormateado}.\n\n` +
+      `Se expide la presente certificación a solicitud del interesado, en la ciudad de Bogotá D.C., el día ${fechaActualStr}.`;
+
+    doc
+      .fillColor('#334155') // Slate 700
+      .fontSize(12)
+      .font('Helvetica')
+      .text(cuerpoTexto, {
+        align: 'justify',
+        lineGap: 6,
+        paragraphGap: 10
+      });
+
+    doc.moveDown(4);
+
+    // Firma
+    doc
+      .fillColor('#0f172a')
+      .fontSize(12)
+      .font('Helvetica-Bold')
+      .text('DEPARTAMENTO DE RECURSOS HUMANOS', { align: 'left' });
+
+    doc
+      .fillColor('#475569')
+      .fontSize(10)
+      .font('Helvetica')
+      .text('Gimnasio Los Arrayanes Bilingüe', { align: 'left' })
+      .text('Email: rrhh@arrayanes.edu.co', { align: 'left' });
+
+    // Finalizar el documento
+    doc.end();
+
+  } catch (error) {
+    console.error('Error en empleadoController.generarCertificado:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al generar el certificado en PDF' });
+  }
+};
+
 module.exports = {
   obtenerPerfil,
   crearEmpleado,
   listarEmpleados,
   actualizarEmpleado,
-  eliminarEmpleado
+  eliminarEmpleado,
+  generarCertificado
 };

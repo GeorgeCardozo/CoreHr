@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import ListaEmpleados from './pages/ListaEmpleados';
 import CrearEmpleado from './pages/CrearEmpleado';
 import GestionContratos from './pages/GestionContratos';
+import PerfilEmpleado from './pages/PerfilEmpleado';
 
 // Componente para proteger rutas privadas generales
 const ProtectedRoute = ({ children }) => {
@@ -59,6 +60,10 @@ const Dashboard = () => {
   const { user, logout } = useAuth();
   const profile = user?.profile;
   const navigate = useNavigate();
+
+  if (user?.rol_id === 2) {
+    return <Navigate to="/perfil" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
@@ -163,19 +168,27 @@ function App() {
             }
           />
           <Route
-            path="/empleados"
+            path="/perfil"
             element={
               <ProtectedRoute>
-                <ListaEmpleados />
+                <PerfilEmpleado />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/empleados"
+            element={
+              <AdminRoute>
+                <ListaEmpleados />
+              </AdminRoute>
             }
           />
           <Route
             path="/crear-empleado"
             element={
-              <ProtectedRoute>
+              <AdminRoute>
                 <CrearEmpleado />
-              </ProtectedRoute>
+              </AdminRoute>
             }
           />
           <Route

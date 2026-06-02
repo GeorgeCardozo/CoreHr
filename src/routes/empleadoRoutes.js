@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado } = require('../controllers/empleadoController');
+const { obtenerPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado } = require('../controllers/empleadoController');
 const { verifyToken, verificarAdmin } = require('../middlewares/auth');
 
 // Ruta: GET /api/empleados/perfil (Protegida por JWT)
 router.get('/perfil', verifyToken, obtenerPerfil);
+
+// Ruta: GET /api/empleados/certificado (Protegida por JWT)
+router.get('/certificado', verifyToken, generarCertificado);
 
 // Ruta: GET /api/empleados (Protegida por JWT)
 router.get('/', verifyToken, listarEmpleados);
