@@ -6,6 +6,7 @@ import ListaEmpleados from './pages/ListaEmpleados';
 import CrearEmpleado from './pages/CrearEmpleado';
 import GestionContratos from './pages/GestionContratos';
 import PerfilEmpleado from './pages/PerfilEmpleado';
+import { Toaster } from 'react-hot-toast';
 
 // Componente para proteger rutas privadas generales
 const ProtectedRoute = ({ children }) => {
@@ -153,6 +154,7 @@ const Dashboard = () => {
 function App() {
   return (
     <AuthProvider>
+      <Toaster position="top-right" reverseOrder={false} />
       <Router>
         <Routes>
           <Route path="/" element={<Login />} />

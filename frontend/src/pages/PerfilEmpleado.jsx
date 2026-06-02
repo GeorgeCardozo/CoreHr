@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
+import api, { actualizarEmpleado } from '../services/api';
+import { toast } from 'react-hot-toast';
 
 const PerfilEmpleado = () => {
   const { user, logout } = useAuth();
@@ -8,6 +9,12 @@ const PerfilEmpleado = () => {
   const [error, setError] = useState('');
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Estados para modal de edición
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editTelefono, setEditTelefono] = useState('');
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
 
   // Cargar datos del perfil en tiempo real al entrar a la página
   useEffect(() => {
@@ -66,6 +73,50 @@ const PerfilEmpleado = () => {
     }).format(valor);
   };
 
+  const manejarModuloEnDesarrollo = (e) => {
+    e.preventDefault();
+    toast('Módulo en desarrollo para la Fase 2', { icon: '🚧' });
+  };
+
+  const handleOpenEdit = () => {
+    setEditTelefono(profile?.telefono || '');
+    setEditError('');
+    setIsModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setSubmittingEdit(true);
+    setEditError('');
+
+    try {
+      const payload = {
+        documento_identidad: profile.documento_identidad,
+        nombres: profile.nombres,
+        apellidos: profile.apellidos,
+        telefono: editTelefono,
+        fecha_ingreso: profile.fecha_ingreso
+      };
+
+      await actualizarEmpleado(profile.id, payload);
+      
+      setProfile({
+        ...profile,
+        telefono: editTelefono
+      });
+
+      toast.success('Perfil actualizado con éxito');
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.message || 'Error al actualizar el teléfono';
+      setEditError(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
@@ -84,15 +135,15 @@ const PerfilEmpleado = () => {
         <div className="flex items-center gap-8">
           <span className="font-headline-md text-headline-md font-bold text-primary">CoreRRHH</span>
           <nav className="hidden md:flex gap-6 items-center">
-            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#">Directorio</a>
-            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#">Beneficios</a>
-            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#">Capacitación</a>
-            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#">Nómina</a>
+            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#" onClick={manejarModuloEnDesarrollo}>Directorio</a>
+            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#" onClick={manejarModuloEnDesarrollo}>Beneficios</a>
+            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#" onClick={manejarModuloEnDesarrollo}>Capacitación</a>
+            <a className="text-on-surface-variant font-label-caps text-label-caps hover:text-primary transition-colors" href="#" onClick={manejarModuloEnDesarrollo}>Nómina</a>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer">notifications</button>
-          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer">settings</button>
+          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>notifications</button>
+          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>settings</button>
           <div 
             onClick={logout}
             title="Cerrar Sesión"
@@ -121,19 +172,19 @@ const PerfilEmpleado = () => {
             <span className="material-symbols-outlined">person</span>
             <span className="font-label-caps text-label-caps">Resumen</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#">
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">description</span>
             <span className="font-label-caps text-label-caps">Documentos</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#">
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">work</span>
             <span className="font-label-caps text-label-caps">Experiencia</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#">
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">trending_up</span>
             <span className="font-label-caps text-label-caps">Desempeño</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#">
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-all" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">manage_accounts</span>
             <span className="font-label-caps text-label-caps">Ajustes</span>
           </a>
@@ -175,27 +226,38 @@ const PerfilEmpleado = () => {
             </div>
             
             {/* Profile Content */}
-            <div className="px-8 pb-8 flex flex-col md:flex-row items-end gap-6 -mt-16 relative z-10">
-              <div className="w-32 h-32 rounded-full border-4 border-surface p-1 bg-surface-container-lowest overflow-hidden shadow-xl">
-                <img 
-                  alt="Perfil del colaborador" 
-                  className="w-full h-full object-cover rounded-full" 
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAl6XMWYT4xKNtN2Tl4ZBzeL3iCCY--9x4VMcVeb4PJPQa226l1RB7VjAYIznd9fizOprYzpwTaQrB0GdfoXU9s_K3aPDEMwyk18Qajtkml7iu2xTfPe9F-VIiCF5MZEI5mirSpog411GvUUHx6JPwMukd5gM79BNIfkIbX5tvo6nlW_Wr6-cP2LvTuli9WI1tLlGWVq6WQuRNCuZkbUDy_3ZhstvuBdI0f9djNlLhLazLIYPuNkpfYeNwiaszfHWWb5Glmj21_8HKJ"
-                />
-              </div>
-              <div className="flex-1 pb-2">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="font-headline-lg text-headline-lg text-on-surface">
-                    {profile?.nombres} {profile?.apellidos}
-                  </h1>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-container text-on-primary-container rounded-full text-[12px] font-bold">
-                    <span className="material-symbols-outlined text-[16px]">verified</span>
-                    Gimnasio Los Arrayanes Bilingüe
-                  </span>
+            <div className="px-8 pb-8 flex flex-col md:flex-row items-end justify-between gap-6 -mt-16 relative z-10 w-full">
+              <div className="flex flex-col md:flex-row items-end gap-6">
+                <div className="w-32 h-32 rounded-full border-4 border-surface p-1 bg-surface-container-lowest overflow-hidden shadow-xl">
+                  <img 
+                    alt="Perfil del colaborador" 
+                    className="w-full h-full object-cover rounded-full" 
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAl6XMWYT4xKNtN2Tl4ZBzeL3iCCY--9x4VMcVeb4PJPQa226l1RB7VjAYIznd9fizOprYzpwTaQrB0GdfoXU9s_K3aPDEMwyk18Qajtkml7iu2xTfPe9F-VIiCF5MZEI5mirSpog411GvUUHx6JPwMukd5gM79BNIfkIbX5tvo6nlW_Wr6-cP2LvTuli9WI1tLlGWVq6WQuRNCuZkbUDy_3ZhstvuBdI0f9djNlLhLazLIYPuNkpfYeNwiaszfHWWb5Glmj21_8HKJ"
+                  />
                 </div>
-                <p className="font-body-lg text-body-lg text-on-surface-variant">
-                  {profile?.cargo || 'Colaborador Institucional'}
-                </p>
+                <div className="pb-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="font-headline-lg text-headline-lg text-on-surface">
+                      {profile?.nombres} {profile?.apellidos}
+                    </h1>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-container text-on-primary-container rounded-full text-[12px] font-bold">
+                      <span className="material-symbols-outlined text-[16px]">verified</span>
+                      Gimnasio Los Arrayanes Bilingüe
+                    </span>
+                  </div>
+                  <p className="font-body-lg text-body-lg text-on-surface-variant">
+                    {profile?.cargo || 'Colaborador Institucional'}
+                  </p>
+                </div>
+              </div>
+              <div className="pb-2 self-center md:self-end">
+                <button 
+                  onClick={handleOpenEdit}
+                  className="flex items-center gap-2 px-4 py-2 border border-outline-variant hover:bg-surface-container rounded-xl text-on-surface font-label-caps text-label-caps transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                  <span>Editar Perfil</span>
+                </button>
               </div>
             </div>
           </section>
@@ -252,6 +314,16 @@ const PerfilEmpleado = () => {
                       <p className="font-body-md text-body-md text-on-surface">Dra. Marta Rivera</p>
                     </div>
                   </div>
+                  
+                  <div className="space-y-1">
+                    <p className="font-label-caps text-label-caps text-on-surface-variant uppercase">Teléfono de Contacto</p>
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-outline">phone</span>
+                      <p className="font-body-md text-body-md text-on-surface font-semibold">
+                        {profile?.telefono || 'No registrado'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -305,12 +377,12 @@ const PerfilEmpleado = () => {
                     </div>
                   </button>
                   
-                  <button className="w-full flex items-center gap-3 p-4 border border-outline-variant rounded-xl hover:bg-surface-container transition-all cursor-pointer">
+                  <button onClick={manejarModuloEnDesarrollo} className="w-full flex items-center gap-3 p-4 border border-outline-variant rounded-xl hover:bg-surface-container transition-all cursor-pointer">
                     <span className="material-symbols-outlined text-on-surface-variant">receipt_long</span>
                     <span className="font-label-caps text-label-caps text-on-surface">Ver Desprendibles de Pago</span>
                   </button>
                   
-                  <button className="w-full flex items-center gap-3 p-4 border border-outline-variant rounded-xl hover:bg-surface-container transition-all cursor-pointer">
+                  <button onClick={manejarModuloEnDesarrollo} className="w-full flex items-center gap-3 p-4 border border-outline-variant rounded-xl hover:bg-surface-container transition-all cursor-pointer">
                     <span className="material-symbols-outlined text-on-surface-variant">event_available</span>
                     <span className="font-label-caps text-label-caps text-on-surface">Solicitar Vacaciones</span>
                   </button>
@@ -368,6 +440,72 @@ const PerfilEmpleado = () => {
             </aside>
           </div>
           
+      {/* Edit Profile Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
+                Actualizar Datos de Contacto
+              </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
+              >
+                close
+              </button>
+            </div>
+            
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              {editError && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs rounded-lg p-3">
+                  {editError}
+                </div>
+              )}
+              
+              <div className="space-y-1">
+                <label htmlFor="telefono" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
+                  Teléfono
+                </label>
+                <input
+                  id="telefono"
+                  type="text"
+                  value={editTelefono}
+                  onChange={(e) => setEditTelefono(e.target.value)}
+                  placeholder="Ej. +57 300 123 4567"
+                  className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-outline-variant rounded-xl hover:bg-surface-container text-on-surface font-label-caps text-label-caps text-sm transition-all cursor-pointer"
+                  disabled={submittingEdit}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-xl font-label-caps text-label-caps text-sm transition-all cursor-pointer flex items-center gap-2"
+                  disabled={submittingEdit}
+                >
+                  {submittingEdit ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <span>Guardar Cambios</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
         </div>
       </main>
     </div>
