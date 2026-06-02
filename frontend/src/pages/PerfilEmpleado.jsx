@@ -107,7 +107,9 @@ const PerfilEmpleado = () => {
         habilidades: profile.habilidades,
         fecha_info_personal: profile.fecha_info_personal,
         fecha_soportes: profile.fecha_soportes,
-        fecha_seguridad: profile.fecha_seguridad
+        fecha_seguridad: profile.fecha_seguridad,
+        superior_inmediato: profile.superior_inmediato,
+        departamento: profile.departamento
       };
 
       await actualizarEmpleado(profile.id, payload);
@@ -315,7 +317,7 @@ const PerfilEmpleado = () => {
                   <div className="space-y-1">
                     <p className="font-label-caps text-label-caps text-on-surface-variant uppercase">Departamento</p>
                     <span className="inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed rounded-md text-label-caps font-semibold">
-                      Académico - STEM
+                      {profile?.departamento || 'No asignado'}
                     </span>
                   </div>
                   
@@ -323,7 +325,7 @@ const PerfilEmpleado = () => {
                     <p className="font-label-caps text-label-caps text-on-surface-variant uppercase">Superior Inmediato</p>
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-surface-variant"></div>
-                      <p className="font-body-md text-body-md text-on-surface">Dra. Marta Rivera</p>
+                      <p className="font-body-md text-body-md text-on-surface">{profile?.superior_inmediato || 'No registrado'}</p>
                     </div>
                   </div>
                   

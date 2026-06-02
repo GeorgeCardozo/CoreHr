@@ -14,7 +14,9 @@ const CrearEmpleado = () => {
     habilidades: '',
     fecha_info_personal: '',
     fecha_soportes: '',
-    fecha_seguridad: ''
+    fecha_seguridad: '',
+    superior_inmediato: '',
+    departamento: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -45,7 +47,9 @@ const CrearEmpleado = () => {
       habilidades: formData.habilidades ? formData.habilidades.split(',').map(s => s.trim()).filter(Boolean) : [],
       fecha_info_personal: formData.fecha_info_personal || undefined,
       fecha_soportes: formData.fecha_soportes || undefined,
-      fecha_seguridad: formData.fecha_seguridad || undefined
+      fecha_seguridad: formData.fecha_seguridad || undefined,
+      superior_inmediato: formData.superior_inmediato || undefined,
+      departamento: formData.departamento || undefined
     };
 
     try {
@@ -225,6 +229,38 @@ const CrearEmpleado = () => {
                 type="date"
                 className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
                 value={formData.fecha_ingreso}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Superior Inmediato */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="superior_inmediato">
+                Superior Inmediato
+              </label>
+              <input
+                id="superior_inmediato"
+                name="superior_inmediato"
+                type="text"
+                placeholder="Ej. Dra. Marta Rivera"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.superior_inmediato}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Departamento */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="departamento">
+                Departamento (Ej. Académico - STEM)
+              </label>
+              <input
+                id="departamento"
+                name="departamento"
+                type="text"
+                placeholder="Ej. Académico - STEM"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.departamento}
                 onChange={handleChange}
               />
             </div>

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const db = require('../config/db');
 require('dotenv').config();
 
 const verifyToken = (req, res, next) => {
@@ -45,8 +46,38 @@ const verificarAdmin = (req, res, next) => {
   next();
 };
 
+const verificarAdminOPropioEmpleado = async (req, res, next) => {
+  if (!req.user) {
+    return res.status(403).json({ message: 'Acceso denegado: Usuario no autenticado' });
+  }
+
+  // Si es administrador (rol_id 1), permitir siempre
+  if (req.user.rol_id === 1) {
+    return next();
+  }
+
+  // Si es empleado, verificar si el id del empleado que intenta actualizar corresponde a su propio usuario_id
+  const { id } = req.params;
+  try {
+    const result = await db.query('SELECT usuario_id FROM empleados WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+    
+    if (result.rows[0].usuario_id === req.user.id) {
+      return next();
+    }
+    
+    return res.status(403).json({ message: 'Acceso denegado: No tienes permisos para modificar este perfil' });
+  } catch (error) {
+    console.error('Error en verificarAdminOPropioEmpleado:', error);
+    return res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   verifyToken,
   authorize,
   verificarAdmin,
+  verificarAdminOPropioEmpleado,
 };

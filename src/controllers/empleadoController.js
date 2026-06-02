@@ -53,7 +53,9 @@ const crearEmpleado = async (req, res) => {
     habilidades,
     fecha_info_personal,
     fecha_soportes,
-    fecha_seguridad
+    fecha_seguridad,
+    superior_inmediato,
+    departamento
   } = req.body;
 
   if (!correo || !contrasena || !documento_identidad || !nombres || !apellidos) {
@@ -86,9 +88,9 @@ const crearEmpleado = async (req, res) => {
     const employeeInsertQuery = `
       INSERT INTO empleados (
         usuario_id, documento_identidad, nombres, apellidos, telefono, fecha_ingreso,
-        habilidades, fecha_info_personal, fecha_soportes, fecha_seguridad
+        habilidades, fecha_info_personal, fecha_soportes, fecha_seguridad, superior_inmediato, departamento
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `;
     const employeeResult = await client.query(employeeInsertQuery, [
@@ -101,7 +103,9 @@ const crearEmpleado = async (req, res) => {
       finalHabilidades,
       fecha_info_personal || null,
       fecha_soportes || null,
-      fecha_seguridad || null
+      fecha_seguridad || null,
+      superior_inmediato || null,
+      departamento || null
     ]);
 
     const nuevoEmpleado = employeeResult.rows[0];
@@ -131,7 +135,12 @@ const crearEmpleado = async (req, res) => {
 
 const listarEmpleados = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM empleados ORDER BY id ASC');
+    const result = await db.query(`
+      SELECT e.*, u.correo 
+      FROM empleados e 
+      LEFT JOIN usuarios u ON e.usuario_id = u.id 
+      ORDER BY e.id ASC
+    `);
     return res.status(200).json({
       message: 'Empleados obtenidos exitosamente',
       empleados: result.rows
@@ -145,6 +154,7 @@ const listarEmpleados = async (req, res) => {
 const actualizarEmpleado = async (req, res) => {
   const { id } = req.params;
   const { 
+    correo,
     documento_identidad, 
     nombres, 
     apellidos, 
@@ -153,14 +163,38 @@ const actualizarEmpleado = async (req, res) => {
     habilidades,
     fecha_info_personal,
     fecha_soportes,
-    fecha_seguridad 
+    fecha_seguridad,
+    superior_inmediato,
+    departamento
   } = req.body;
 
   if (!documento_identidad || !nombres || !apellidos) {
     return res.status(400).json({ message: 'Se requieren documento_identidad, nombres y apellidos' });
   }
 
+  const pool = db.pool;
+  const client = await pool.connect();
+
   try {
+    await client.query('BEGIN');
+
+    // 1. Obtener el usuario_id asociado a la ficha de empleado
+    const empRes = await client.query('SELECT usuario_id FROM empleados WHERE id = $1', [id]);
+    if (empRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+    const usuarioId = empRes.rows[0].usuario_id;
+
+    // 2. Actualizar el correo en la tabla usuarios si se proporciona
+    if (correo) {
+      await client.query(
+        'UPDATE usuarios SET correo = $1 WHERE id = $2',
+        [correo, usuarioId]
+      );
+    }
+
+    // 3. Actualizar la ficha de empleado
     const finalHabilidades = Array.isArray(habilidades) ? habilidades : null;
     const queryText = `
       UPDATE empleados
@@ -172,11 +206,13 @@ const actualizarEmpleado = async (req, res) => {
           habilidades = $6,
           fecha_info_personal = $7,
           fecha_soportes = $8,
-          fecha_seguridad = $9
-      WHERE id = $10
+          fecha_seguridad = $9,
+          superior_inmediato = $10,
+          departamento = $11
+      WHERE id = $12
       RETURNING *
     `;
-    const result = await db.query(queryText, [
+    const result = await client.query(queryText, [
       documento_identidad,
       nombres,
       apellidos,
@@ -186,23 +222,31 @@ const actualizarEmpleado = async (req, res) => {
       fecha_info_personal || null,
       fecha_soportes || null,
       fecha_seguridad || null,
+      superior_inmediato || null,
+      departamento || null,
       id
     ]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Empleado no encontrado' });
-    }
+    await client.query('COMMIT');
+
+    const empleadoModificado = {
+      ...result.rows[0],
+      correo
+    };
 
     return res.status(200).json({
       message: 'Empleado actualizado exitosamente',
-      empleado: result.rows[0]
+      empleado: empleadoModificado
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error en empleadoController.actualizarEmpleado:', error);
     if (error.code === '23505') {
-      return res.status(400).json({ message: 'El documento de identidad ya se encuentra registrado por otro colaborador' });
+      return res.status(400).json({ message: 'El documento de identidad o correo electrónico ya se encuentra registrado por otro colaborador' });
     }
     return res.status(500).json({ message: 'Error interno del servidor al actualizar empleado' });
+  } finally {
+    client.release();
   }
 };
 

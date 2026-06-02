@@ -12,11 +12,18 @@ const ListaEmpleados = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedEmpleado, setSelectedEmpleado] = useState(null);
   const [editFormData, setEditFormData] = useState({
+    correo: '',
     documento_identidad: '',
     nombres: '',
     apellidos: '',
     telefono: '',
-    fecha_ingreso: ''
+    fecha_ingreso: '',
+    superior_inmediato: '',
+    habilidades: '',
+    fecha_info_personal: '',
+    fecha_soportes: '',
+    fecha_seguridad: '',
+    departamento: ''
   });
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
@@ -53,21 +60,28 @@ const ListaEmpleados = () => {
   const handleOpenEdit = (emp) => {
     setSelectedEmpleado(emp);
     
-    let formattedDate = '';
-    if (emp.fecha_ingreso) {
-      const d = new Date(emp.fecha_ingreso);
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      formattedDate = `${year}-${month}-${day}`;
-    }
+      return `${year}-${month}-${day}`;
+    };
 
     setEditFormData({
+      correo: emp.correo || '',
       documento_identidad: emp.documento_identidad || '',
       nombres: emp.nombres || '',
       apellidos: emp.apellidos || '',
       telefono: emp.telefono || '',
-      fecha_ingreso: formattedDate
+      fecha_ingreso: formatDate(emp.fecha_ingreso),
+      superior_inmediato: emp.superior_inmediato || '',
+      habilidades: Array.isArray(emp.habilidades) ? emp.habilidades.join(', ') : '',
+      fecha_info_personal: formatDate(emp.fecha_info_personal),
+      fecha_soportes: formatDate(emp.fecha_soportes),
+      fecha_seguridad: formatDate(emp.fecha_seguridad),
+      departamento: emp.departamento || ''
     });
     setEditError('');
     setIsEditModalOpen(true);
@@ -80,11 +94,18 @@ const ListaEmpleados = () => {
 
     try {
       const data = await actualizarEmpleado(selectedEmpleado.id, {
+        correo: editFormData.correo || null,
         documento_identidad: editFormData.documento_identidad,
         nombres: editFormData.nombres,
         apellidos: editFormData.apellidos,
         telefono: editFormData.telefono || null,
-        fecha_ingreso: editFormData.fecha_ingreso || null
+        fecha_ingreso: editFormData.fecha_ingreso || null,
+        superior_inmediato: editFormData.superior_inmediato || null,
+        habilidades: editFormData.habilidades ? editFormData.habilidades.split(',').map(s => s.trim()).filter(Boolean) : [],
+        fecha_info_personal: editFormData.fecha_info_personal || null,
+        fecha_soportes: editFormData.fecha_soportes || null,
+        fecha_seguridad: editFormData.fecha_seguridad || null,
+        departamento: editFormData.departamento || null
       });
 
       // Actualizar la lista localmente
@@ -156,6 +177,7 @@ const ListaEmpleados = () => {
                     <th className="py-4 px-6">Documento</th>
                     <th className="py-4 px-6">Nombres</th>
                     <th className="py-4 px-6">Apellidos</th>
+                    <th className="py-4 px-6">Correo</th>
                     <th className="py-4 px-6">Teléfono</th>
                     <th className="py-4 px-6">Ingreso</th>
                     <th className="py-4 px-6 text-center">Acciones</th>
@@ -175,6 +197,9 @@ const ListaEmpleados = () => {
                       </td>
                       <td className="py-4 px-6 text-slate-300">
                         {emp.apellidos}
+                      </td>
+                      <td className="py-4 px-6 text-slate-300">
+                        {emp.correo || 'No registrado'}
                       </td>
                       <td className="py-4 px-6 text-slate-400">
                         {emp.telefono || 'No registrado'}
@@ -233,84 +258,196 @@ const ListaEmpleados = () => {
 
             {/* Form */}
             <form onSubmit={handleEditSubmit} className="space-y-4">
-              
-              {/* Documento Identidad */}
-              <div>
-                <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_documento_identidad">
-                  Documento de Identidad *
-                </label>
-                <input
-                  id="edit_documento_identidad"
-                  name="documento_identidad"
-                  type="text"
-                  required
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                  value={editFormData.documento_identidad}
-                  onChange={(e) => setEditFormData({ ...editFormData, documento_identidad: e.target.value })}
-                />
-              </div>
+              <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-4">
+                
+                {/* Correo Institucional */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_correo">
+                    Correo Institucional *
+                  </label>
+                  <input
+                    id="edit_correo"
+                    name="correo"
+                    type="email"
+                    required
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.correo}
+                    onChange={(e) => setEditFormData({ ...editFormData, correo: e.target.value })}
+                  />
+                </div>
 
-              {/* Nombres */}
-              <div>
-                <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_nombres">
-                  Nombres *
-                </label>
-                <input
-                  id="edit_nombres"
-                  name="nombres"
-                  type="text"
-                  required
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                  value={editFormData.nombres}
-                  onChange={(e) => setEditFormData({ ...editFormData, nombres: e.target.value })}
-                />
-              </div>
+                {/* Documento Identidad */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_documento_identidad">
+                    Documento de Identidad *
+                  </label>
+                  <input
+                    id="edit_documento_identidad"
+                    name="documento_identidad"
+                    type="text"
+                    required
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.documento_identidad}
+                    onChange={(e) => setEditFormData({ ...editFormData, documento_identidad: e.target.value })}
+                  />
+                </div>
 
-              {/* Apellidos */}
-              <div>
-                <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_apellidos">
-                  Apellidos *
-                </label>
-                <input
-                  id="edit_apellidos"
-                  name="apellidos"
-                  type="text"
-                  required
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                  value={editFormData.apellidos}
-                  onChange={(e) => setEditFormData({ ...editFormData, apellidos: e.target.value })}
-                />
-              </div>
+                {/* Nombres */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_nombres">
+                    Nombres *
+                  </label>
+                  <input
+                    id="edit_nombres"
+                    name="nombres"
+                    type="text"
+                    required
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.nombres}
+                    onChange={(e) => setEditFormData({ ...editFormData, nombres: e.target.value })}
+                  />
+                </div>
 
-              {/* Teléfono */}
-              <div>
-                <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_telefono">
-                  Teléfono de Contacto
-                </label>
-                <input
-                  id="edit_telefono"
-                  name="telefono"
-                  type="text"
-                  placeholder="Ej. +57 300 000 0000"
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                  value={editFormData.telefono}
-                  onChange={(e) => setEditFormData({ ...editFormData, telefono: e.target.value })}
-                />
-              </div>
+                {/* Apellidos */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_apellidos">
+                    Apellidos *
+                  </label>
+                  <input
+                    id="edit_apellidos"
+                    name="apellidos"
+                    type="text"
+                    required
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.apellidos}
+                    onChange={(e) => setEditFormData({ ...editFormData, apellidos: e.target.value })}
+                  />
+                </div>
 
-              {/* Fecha Ingreso */}
-              <div>
-                <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_fecha_ingreso">
-                  Fecha de Ingreso
-                </label>
-                <input
-                  id="edit_fecha_ingreso"
-                  name="fecha_ingreso"
-                  type="date"
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                  value={editFormData.fecha_ingreso}
-                  onChange={(e) => setEditFormData({ ...editFormData, fecha_ingreso: e.target.value })}
-                />
+                {/* Teléfono */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_telefono">
+                    Teléfono de Contacto
+                  </label>
+                  <input
+                    id="edit_telefono"
+                    name="telefono"
+                    type="text"
+                    placeholder="Ej. +57 300 000 0000"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.telefono}
+                    onChange={(e) => setEditFormData({ ...editFormData, telefono: e.target.value })}
+                  />
+                </div>
+
+                {/* Fecha Ingreso */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_fecha_ingreso">
+                    Fecha de Ingreso
+                  </label>
+                  <input
+                    id="edit_fecha_ingreso"
+                    name="fecha_ingreso"
+                    type="date"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.fecha_ingreso}
+                    onChange={(e) => setEditFormData({ ...editFormData, fecha_ingreso: e.target.value })}
+                  />
+                </div>
+
+                {/* Superior Inmediato */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_superior_inmediato">
+                    Superior Inmediato
+                  </label>
+                  <input
+                    id="edit_superior_inmediato"
+                    name="superior_inmediato"
+                    type="text"
+                    placeholder="Ej. Dra. Marta Rivera"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.superior_inmediato}
+                    onChange={(e) => setEditFormData({ ...editFormData, superior_inmediato: e.target.value })}
+                  />
+                </div>
+
+                {/* Departamento */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_departamento">
+                    Departamento (Ej. Académico - STEM)
+                  </label>
+                  <input
+                    id="edit_departamento"
+                    name="departamento"
+                    type="text"
+                    placeholder="Ej. Académico - STEM"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.departamento}
+                    onChange={(e) => setEditFormData({ ...editFormData, departamento: e.target.value })}
+                  />
+                </div>
+
+                {/* Habilidades */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_habilidades">
+                    Habilidades (separadas por coma)
+                  </label>
+                  <input
+                    id="edit_habilidades"
+                    name="habilidades"
+                    type="text"
+                    placeholder="Ej. Node.js, Inglés B2, Google Workspace"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.habilidades}
+                    onChange={(e) => setEditFormData({ ...editFormData, habilidades: e.target.value })}
+                  />
+                </div>
+
+                {/* Fecha Info Personal */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_fecha_info_personal">
+                    Fecha Verificación Info Personal
+                  </label>
+                  <input
+                    id="edit_fecha_info_personal"
+                    name="fecha_info_personal"
+                    type="date"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.fecha_info_personal}
+                    onChange={(e) => setEditFormData({ ...editFormData, fecha_info_personal: e.target.value })}
+                  />
+                </div>
+
+                {/* Fecha Soportes */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_fecha_soportes">
+                    Fecha Verificación Soportes
+                  </label>
+                  <input
+                    id="edit_fecha_soportes"
+                    name="fecha_soportes"
+                    type="date"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.fecha_soportes}
+                    onChange={(e) => setEditFormData({ ...editFormData, fecha_soportes: e.target.value })}
+                  />
+                </div>
+
+                {/* Fecha Seguridad */}
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1" htmlFor="edit_fecha_seguridad">
+                    Fecha Validación Seguridad
+                  </label>
+                  <input
+                    id="edit_fecha_seguridad"
+                    name="fecha_seguridad"
+                    type="date"
+                    className="w-full bg-slate-950/50 border border-slate-700/60 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                    value={editFormData.fecha_seguridad}
+                    onChange={(e) => setEditFormData({ ...editFormData, fecha_seguridad: e.target.value })}
+                  />
+                </div>
+
               </div>
 
               {/* Botones de acción */}
