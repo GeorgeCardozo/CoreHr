@@ -49,7 +49,11 @@ const crearEmpleado = async (req, res) => {
     nombres, 
     apellidos, 
     telefono, 
-    fecha_ingreso 
+    fecha_ingreso,
+    habilidades,
+    fecha_info_personal,
+    fecha_soportes,
+    fecha_seguridad
   } = req.body;
 
   if (!correo || !contrasena || !documento_identidad || !nombres || !apellidos) {
@@ -78,9 +82,13 @@ const crearEmpleado = async (req, res) => {
     const newUserId = userResult.rows[0].id;
 
     // Paso 2: Crear la ficha de empleado con el id del usuario generado
+    const finalHabilidades = Array.isArray(habilidades) ? habilidades : null;
     const employeeInsertQuery = `
-      INSERT INTO empleados (usuario_id, documento_identidad, nombres, apellidos, telefono, fecha_ingreso)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO empleados (
+        usuario_id, documento_identidad, nombres, apellidos, telefono, fecha_ingreso,
+        habilidades, fecha_info_personal, fecha_soportes, fecha_seguridad
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `;
     const employeeResult = await client.query(employeeInsertQuery, [
@@ -89,7 +97,11 @@ const crearEmpleado = async (req, res) => {
       nombres,
       apellidos,
       telefono || null,
-      fechaIngresoFinal
+      fechaIngresoFinal,
+      finalHabilidades,
+      fecha_info_personal || null,
+      fecha_soportes || null,
+      fecha_seguridad || null
     ]);
 
     const nuevoEmpleado = employeeResult.rows[0];
@@ -132,17 +144,36 @@ const listarEmpleados = async (req, res) => {
 
 const actualizarEmpleado = async (req, res) => {
   const { id } = req.params;
-  const { documento_identidad, nombres, apellidos, telefono, fecha_ingreso } = req.body;
+  const { 
+    documento_identidad, 
+    nombres, 
+    apellidos, 
+    telefono, 
+    fecha_ingreso,
+    habilidades,
+    fecha_info_personal,
+    fecha_soportes,
+    fecha_seguridad 
+  } = req.body;
 
   if (!documento_identidad || !nombres || !apellidos) {
     return res.status(400).json({ message: 'Se requieren documento_identidad, nombres y apellidos' });
   }
 
   try {
+    const finalHabilidades = Array.isArray(habilidades) ? habilidades : null;
     const queryText = `
       UPDATE empleados
-      SET documento_identidad = $1, nombres = $2, apellidos = $3, telefono = $4, fecha_ingreso = $5
-      WHERE id = $6
+      SET documento_identidad = $1, 
+          nombres = $2, 
+          apellidos = $3, 
+          telefono = $4, 
+          fecha_ingreso = $5,
+          habilidades = $6,
+          fecha_info_personal = $7,
+          fecha_soportes = $8,
+          fecha_seguridad = $9
+      WHERE id = $10
       RETURNING *
     `;
     const result = await db.query(queryText, [
@@ -151,6 +182,10 @@ const actualizarEmpleado = async (req, res) => {
       apellidos,
       telefono || null,
       fecha_ingreso || new Date(),
+      finalHabilidades,
+      fecha_info_personal || null,
+      fecha_soportes || null,
+      fecha_seguridad || null,
       id
     ]);
 

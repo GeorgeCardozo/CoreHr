@@ -78,6 +78,14 @@ const PerfilEmpleado = () => {
     toast('Módulo en desarrollo para la Fase 2', { icon: '🚧' });
   };
 
+  const getFechaFormateadaStepper = (fechaStr) => {
+    if (!fechaStr) return '';
+    return new Date(fechaStr).toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'short'
+    });
+  };
+
   const handleOpenEdit = () => {
     setEditTelefono(profile?.telefono || '');
     setEditError('');
@@ -95,7 +103,11 @@ const PerfilEmpleado = () => {
         nombres: profile.nombres,
         apellidos: profile.apellidos,
         telefono: editTelefono,
-        fecha_ingreso: profile.fecha_ingreso
+        fecha_ingreso: profile.fecha_ingreso,
+        habilidades: profile.habilidades,
+        fecha_info_personal: profile.fecha_info_personal,
+        fecha_soportes: profile.fecha_soportes,
+        fecha_seguridad: profile.fecha_seguridad
       };
 
       await actualizarEmpleado(profile.id, payload);
@@ -334,12 +346,15 @@ const PerfilEmpleado = () => {
                   <h2 className="font-headline-md text-headline-md text-on-surface">Habilidades</h2>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <span className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">Node.js</span>
-                  <span className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">Inglés B2</span>
-                  <span className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">Google Workspace</span>
-                  <span className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">EdTech</span>
-                  <span className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">Python for Education</span>
-                  <span className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">Design Thinking</span>
+                  {profile?.habilidades && profile.habilidades.length > 0 ? (
+                    profile.habilidades.map((hab, index) => (
+                      <span key={index} className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">
+                        {hab}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-outline italic">Sin habilidades registradas</span>
+                  )}
                 </div>
               </div>
 
@@ -398,40 +413,64 @@ const PerfilEmpleado = () => {
                 <div className="space-y-6">
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-surface-tint flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-[14px]">check</span>
-                      </div>
-                      <div className="w-0.5 h-full bg-surface-tint"></div>
+                      {profile?.fecha_info_personal ? (
+                        <div className="w-6 h-6 rounded-full bg-surface-tint flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-[14px]">check</span>
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-outline-variant bg-surface-container-lowest flex items-center justify-center">
+                          <span className="material-symbols-outlined text-outline text-[14px]">pending</span>
+                        </div>
+                      )}
+                      <div className={`w-0.5 h-full ${profile?.fecha_info_personal ? 'bg-surface-tint' : 'bg-outline-variant'}`}></div>
                     </div>
                     <div className="pb-4">
-                      <p className="font-label-caps text-label-caps text-primary">Información Personal</p>
-                      <p className="text-[12px] text-on-surface-variant">Completado el 12 de Feb</p>
+                      <p className={`font-label-caps text-label-caps ${profile?.fecha_info_personal ? 'text-primary' : 'text-on-surface-variant'}`}>Información Personal</p>
+                      <p className="text-[12px] text-on-surface-variant">
+                        {profile?.fecha_info_personal ? `Completado el ${getFechaFormateadaStepper(profile.fecha_info_personal)}` : 'Pendiente'}
+                      </p>
                     </div>
                   </div>
                   
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-surface-tint flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-[14px]">check</span>
-                      </div>
-                      <div className="w-0.5 h-full bg-outline-variant"></div>
+                      {profile?.fecha_soportes ? (
+                        <div className="w-6 h-6 rounded-full bg-surface-tint flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-[14px]">check</span>
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-outline-variant bg-surface-container-lowest flex items-center justify-center">
+                          <span className="material-symbols-outlined text-outline text-[14px]">pending</span>
+                        </div>
+                      )}
+                      <div className={`w-0.5 h-full ${profile?.fecha_soportes ? 'bg-surface-tint' : 'bg-outline-variant'}`}></div>
                     </div>
                     <div className="pb-4">
-                      <p className="font-label-caps text-label-caps text-primary">Soportes Académicos</p>
-                      <p className="text-[12px] text-on-surface-variant">Cargado hace 2 días</p>
+                      <p className={`font-label-caps text-label-caps ${profile?.fecha_soportes ? 'text-primary' : 'text-on-surface-variant'}`}>Soportes Académicos</p>
+                      <p className="text-[12px] text-on-surface-variant">
+                        {profile?.fecha_soportes ? `Completado el ${getFechaFormateadaStepper(profile.fecha_soportes)}` : 'Pendiente'}
+                      </p>
                     </div>
                   </div>
                   
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full border-2 border-primary-fixed-dim bg-surface-container-lowest flex items-center justify-center">
-                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                      </div>
+                      {profile?.fecha_seguridad ? (
+                        <div className="w-6 h-6 rounded-full bg-surface-tint flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-[14px]">check</span>
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-primary-fixed-dim bg-surface-container-lowest flex items-center justify-center">
+                          <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                        </div>
+                      )}
                       <div className="w-0.5 h-full bg-outline-variant opacity-30"></div>
                     </div>
                     <div className="pb-4">
-                      <p className="font-label-caps text-label-caps text-on-surface">Validación de Seguridad</p>
-                      <p className="text-[12px] text-on-surface-variant">Pendiente por el usuario</p>
+                      <p className={`font-label-caps text-label-caps ${profile?.fecha_seguridad ? 'text-primary' : 'text-on-surface'}`}>Validación de Seguridad</p>
+                      <p className="text-[12px] text-on-surface-variant">
+                        {profile?.fecha_seguridad ? `Completado el ${getFechaFormateadaStepper(profile.fecha_seguridad)}` : 'Pendiente'}
+                      </p>
                     </div>
                   </div>
                 </div>

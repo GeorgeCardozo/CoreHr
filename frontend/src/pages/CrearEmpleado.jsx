@@ -10,7 +10,11 @@ const CrearEmpleado = () => {
     nombres: '',
     apellidos: '',
     telefono: '',
-    fecha_ingreso: ''
+    fecha_ingreso: '',
+    habilidades: '',
+    fecha_info_personal: '',
+    fecha_soportes: '',
+    fecha_seguridad: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -37,7 +41,11 @@ const CrearEmpleado = () => {
       nombres: formData.nombres,
       apellidos: formData.apellidos,
       telefono: formData.telefono || undefined,
-      fecha_ingreso: formData.fecha_ingreso || undefined
+      fecha_ingreso: formData.fecha_ingreso || undefined,
+      habilidades: formData.habilidades ? formData.habilidades.split(',').map(s => s.trim()).filter(Boolean) : [],
+      fecha_info_personal: formData.fecha_info_personal || undefined,
+      fecha_soportes: formData.fecha_soportes || undefined,
+      fecha_seguridad: formData.fecha_seguridad || undefined
     };
 
     try {
@@ -217,6 +225,67 @@ const CrearEmpleado = () => {
                 type="date"
                 className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
                 value={formData.fecha_ingreso}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Habilidades */}
+            <div className="md:col-span-2">
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="habilidades">
+                Habilidades (separadas por coma)
+              </label>
+              <input
+                id="habilidades"
+                name="habilidades"
+                type="text"
+                placeholder="Ej. Node.js, Inglés B2, Google Workspace"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.habilidades}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Fecha Verificación Info Personal */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_info_personal">
+                Fecha Verificación Info Personal
+              </label>
+              <input
+                id="fecha_info_personal"
+                name="fecha_info_personal"
+                type="date"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.fecha_info_personal}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Fecha Verificación Soportes */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_soportes">
+                Fecha Verificación Soportes
+              </label>
+              <input
+                id="fecha_soportes"
+                name="fecha_soportes"
+                type="date"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.fecha_soportes}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Fecha Validación Seguridad */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_seguridad">
+                Fecha Validación Seguridad
+              </label>
+              <input
+                id="fecha_seguridad"
+                name="fecha_seguridad"
+                type="date"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.fecha_seguridad}
                 onChange={handleChange}
               />
             </div>
