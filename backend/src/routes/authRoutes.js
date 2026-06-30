@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { login, registro, listarUsuarios } = require('../controllers/authController');
+const { login, registro, listarUsuarios, loginConGoogle } = require('../controllers/authController');
 const { verifyToken, verificarAdmin } = require('../middlewares/auth');
 
 // Ruta: POST /api/auth/login
 router.post('/login', login);
+
+// Ruta: POST /api/auth/google
+router.post('/google', loginConGoogle);
 
 // Ruta: POST /api/auth/registro
 router.post('/registro', registro);

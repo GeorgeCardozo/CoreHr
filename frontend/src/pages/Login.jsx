@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
   const [correo, setCorreo] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, loginGoogle } = useAuth();
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -125,6 +126,8 @@ const Login = () => {
                     ¿Olvidó su contraseña?
                   </a>
                 </div>
+              
+                
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant group-focus-within:text-primary transition-colors">
                     <span className="material-symbols-outlined text-[20px]">lock</span>
@@ -166,6 +169,27 @@ const Login = () => {
                   'Iniciar Sesión'
                 )}
               </button>
+
+              <GoogleLogin
+                onSuccess={async (credentialResponse) => {
+                  try {
+                    setError('');
+                    setLoading(true);
+                    await loginGoogle(credentialResponse.credential);
+                    console.log("¡Bienvenido al sistema con Google!");
+                    navigate('/dashboard');
+                  } catch (error) {
+                    console.error("Error al iniciar sesión con Google:", error);
+                    setError(error.response?.data?.error || error.response?.data?.message || error.message || "Error al autenticar con Google");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                onError={() => {
+                  console.error('El inicio de sesión con Google falló');
+                  setError('El inicio de sesión con Google falló. Inténtelo de nuevo.');
+                }}
+              />
 
             </form>
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { crearEmpleado } from '../services/api';
+import AdminLayout from '../components/AdminLayout';
 
 const CrearEmpleado = () => {
   const [formData, setFormData] = useState({
@@ -16,7 +17,14 @@ const CrearEmpleado = () => {
     fecha_soportes: '',
     fecha_seguridad: '',
     superior_inmediato: '',
-    departamento: ''
+    departamento: '',
+    fecha_terminacion: '',
+    tipo_genero: '',
+    fecha_nacimiento: '',
+    correo_personal: '',
+    contacto_emergencia: '',
+    parentesco: '',
+    telefono_emergencia: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -49,7 +57,14 @@ const CrearEmpleado = () => {
       fecha_soportes: formData.fecha_soportes || undefined,
       fecha_seguridad: formData.fecha_seguridad || undefined,
       superior_inmediato: formData.superior_inmediato || undefined,
-      departamento: formData.departamento || undefined
+      departamento: formData.departamento || undefined,
+      fecha_terminacion: formData.fecha_terminacion || undefined,
+      tipo_genero: formData.tipo_genero || undefined,
+      fecha_nacimiento: formData.fecha_nacimiento || undefined,
+      correo_personal: formData.correo_personal || undefined,
+      contacto_emergencia: formData.contacto_emergencia || undefined,
+      parentesco: formData.parentesco || undefined,
+      telefono_emergencia: formData.telefono_emergencia || undefined
     };
 
     try {
@@ -67,7 +82,7 @@ const CrearEmpleado = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-6 sm:p-8">
+    <AdminLayout>
       <div className="max-w-3xl mx-auto space-y-6">
         
         {/* Header de navegación */}
@@ -233,6 +248,21 @@ const CrearEmpleado = () => {
               />
             </div>
 
+            {/* Fecha Terminación */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_terminacion">
+                Fecha de Terminación
+              </label>
+              <input
+                id="fecha_terminacion"
+                name="fecha_terminacion"
+                type="date"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.fecha_terminacion}
+                onChange={handleChange}
+              />
+            </div>
+
             {/* Superior Inmediato */}
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="superior_inmediato">
@@ -261,6 +291,56 @@ const CrearEmpleado = () => {
                 placeholder="Ej. Académico - STEM"
                 className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
                 value={formData.departamento}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Género */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="tipo_genero">
+                Género
+              </label>
+              <select
+                id="tipo_genero"
+                name="tipo_genero"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.tipo_genero}
+                onChange={handleChange}
+              >
+                <option value="">Seleccione género</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Femenino">Femenino</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+
+            {/* Fecha de Nacimiento */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_nacimiento">
+                Fecha de Nacimiento
+              </label>
+              <input
+                id="fecha_nacimiento"
+                name="fecha_nacimiento"
+                type="date"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.fecha_nacimiento}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Correo Personal */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="correo_personal">
+                Correo Personal
+              </label>
+              <input
+                id="correo_personal"
+                name="correo_personal"
+                type="email"
+                placeholder="Ej. personal@correo.com"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.correo_personal}
                 onChange={handleChange}
               />
             </div>
@@ -326,6 +406,58 @@ const CrearEmpleado = () => {
               />
             </div>
 
+            <h2 className="text-lg font-semibold border-b border-slate-800 pb-2 pt-4 md:col-span-2 text-emerald-400">
+              Contacto de Emergencia
+            </h2>
+
+            {/* Contacto de Emergencia - Nombre */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="contacto_emergencia">
+                Nombre del Contacto
+              </label>
+              <input
+                id="contacto_emergencia"
+                name="contacto_emergencia"
+                type="text"
+                placeholder="Nombre completo"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.contacto_emergencia}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Contacto de Emergencia - Parentesco */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="parentesco">
+                Parentesco
+              </label>
+              <input
+                id="parentesco"
+                name="parentesco"
+                type="text"
+                placeholder="Ej. Madre, Cónyuge, Hermano"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.parentesco}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Contacto de Emergencia - Teléfono */}
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="telefono_emergencia">
+                Teléfono de Emergencia
+              </label>
+              <input
+                id="telefono_emergencia"
+                name="telefono_emergencia"
+                type="text"
+                placeholder="Ej. +57 300 000 0000"
+                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                value={formData.telefono_emergencia}
+                onChange={handleChange}
+              />
+            </div>
+
           </div>
 
           {/* Botones */}
@@ -349,7 +481,7 @@ const CrearEmpleado = () => {
         </form>
 
       </div>
-    </div>
+    </AdminLayout>
   );
 };
 

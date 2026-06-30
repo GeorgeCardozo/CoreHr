@@ -1,6 +1,8 @@
 const db = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const pool = require('../config/db');
+const { OAuth2Client } = require('google-auth-library');
 
 const login = async (req, res) => {
   const { correo, contrasena } = req.body;
@@ -31,10 +33,11 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
-    // Firmar y devolver el token JWT incluyendo el id y el rol_id
+    // Firmar y devolver el token JWT incluyendo el id, el rol_id y el correo
     const payload = {
       id: usuario.id,
-      rol_id: usuario.rol_id
+      rol_id: usuario.rol_id,
+      correo: usuario.correo
     };
 
     const token = jwt.sign(
@@ -104,8 +107,83 @@ const listarUsuarios = async (req, res) => {
   }
 };
 
+// Inicializamos la herramienta de Google con tu Client ID del .env
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID?.trim());
+
+const loginConGoogle = async (req, res) => {
+  try {
+    // 1. Recibimos el certificado que manda React
+    const { tokenGoogle } = req.body;
+
+    if (!tokenGoogle) {
+      return res.status(400).json({ error: "Se requiere el token de Google" });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID?.trim();
+
+    // 2. Le pedimos a Google que verifique si el certificado es real
+    const ticket = await client.verifyIdToken({
+      idToken: tokenGoogle,
+      audience: clientId,
+    });
+
+    // 3. Si es real, Google nos devuelve la información del usuario// 3. Extraemos los datos de Google
+    const payload = ticket.getPayload();
+    const correo = payload.email;
+    const googleId = payload.sub;
+
+    // 4. Primer filtro: Solo correos de la institución
+    if (!correo.endsWith('@gla.edu.co')) {
+      return res.status(403).json({ error: "Acceso denegado. Usa tu correo institucional." });
+    }
+
+    // 5. Segundo filtro (LA LISTA BLANCA): Buscamos si RRHH ya lo registró
+    let result = await pool.query('SELECT * FROM usuarios WHERE correo = $1', [correo]);
+    
+    // Si no está en la base de datos (es un estudiante o alguien no autorizado)
+    if (result.rows.length === 0) {
+      return res.status(403).json({ 
+        error: "Acceso denegado. Tu correo es válido, pero no estás registrado en el portal de Recursos Humanos." 
+      });
+    }
+
+    // Si pasó los filtros, cargamos al usuario
+    let usuario = result.rows[0];
+
+    // 6. Vinculamos su cuenta de Google si es su primera vez entrando
+    if (!usuario.google_id) {
+      await pool.query('UPDATE usuarios SET google_id = $1 WHERE id = $2', [googleId, usuario.id]);
+      console.log(`Cuenta de Google vinculada para: ${correo}`);
+    }
+
+    // 7. Creamos tu JWT (esto ya lo tienes)
+    const tokenInterno = jwt.sign(
+      { id: usuario.id, rol_id: usuario.rol_id, correo: usuario.correo },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+    
+    // 8. Se lo enviamos a React INCLUYENDO los datos del usuario
+    res.json({ 
+      mensaje: "Login exitoso", 
+      token: tokenInterno,
+      usuario: {
+        id: usuario.id,
+        correo: usuario.correo,
+        rol_id: usuario.rol_id
+      }
+    });
+
+
+  } catch (error) {
+    console.error("Error en la autenticación:", error);
+    res.status(500).json({ error: "Error validando el token de Google" });
+  }
+};
+
 module.exports = {
   login,
   registro,
-  listarUsuarios
+  listarUsuarios,
+  loginConGoogle
 };

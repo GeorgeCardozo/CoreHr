@@ -21,6 +21,7 @@ const verifyToken = (req, res, next) => {
     req.user = decoded; // req.user tendrá { id, rol_id }
     next();
   } catch (error) {
+    console.error('JWT verification error:', error.message);
     return res.status(403).json({ message: 'Acceso denegado: Token inválido o expirado' });
   }
 };

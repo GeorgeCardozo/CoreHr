@@ -82,7 +82,7 @@ const obtenerContratos = async (req, res) => {
   try {
     let result;
     const queryText = `
-      SELECT c.*, e.nombres, e.apellidos 
+      SELECT c.*, e.nombres, e.apellidos, e.foto_perfil 
       FROM contratos c 
       JOIN empleados e ON c.empleado_id = e.id
     `;

@@ -1,7 +1,24 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 
 const AuthContext = createContext(null);
+
+// Helper para decodificar JWT sin dependencias externas
+const decodeToken = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -12,14 +29,27 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          const response = await api.get('/empleados/perfil');
-          const perfil = response.data.perfil;
+          // 1. Decodificamos el token primero para obtener los datos básicos
+          const decoded = decodeToken(token);
+          if (!decoded) {
+            throw new Error('Token inválido o corrupto');
+          }
+
+          // 2. Intentamos cargar el perfil completo, pero si falla (404) no deslogueamos al usuario
+          let perfil = null;
+          try {
+            const response = await api.get('/empleados/perfil');
+            perfil = response.data.perfil;
+          } catch (profileError) {
+            console.warn('No se pudo obtener el perfil completo, continuando con datos básicos:', profileError.message);
+          }
+
           setUser({
             token,
             profile: perfil,
-            id: perfil.usuario_id,
-            rol_id: perfil.rol_id,
-            correo: perfil.correo
+            id: decoded.id,
+            rol_id: decoded.rol_id,
+            correo: decoded.correo || (perfil ? perfil.correo : '')
           });
         } catch (error) {
           console.error('Sesión inválida o expirada:', error);
@@ -43,7 +73,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const profileResponse = await api.get('/empleados/perfil');
       profile = profileResponse.data.perfil;
-    } catch (e) {
+    } catch {
       console.log('No se encontró perfil asociado al usuario actual.');
     }
 
@@ -58,13 +88,52 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
+  const loginGoogle = async (googleData) => {
+    try {
+      // Soporta tanto recibir el string directo del token como un objeto wrapper { tokenGoogle }
+      const tokenGoogle = (googleData && typeof googleData === 'object' && googleData.tokenGoogle)
+        ? googleData.tokenGoogle
+        : googleData;
+
+      // 1. Hacemos la petición a la API
+      const response = await api.post('/auth/google', { tokenGoogle });
+      const { token } = response.data;
+      const userData = response.data.user || response.data.usuario;
+
+      // Guardamos el token en localStorage
+      localStorage.setItem('token', token);
+
+      // 2. Intentamos buscar el perfil completo, pero si falla NO estrellamos la app
+      let profile = null;
+      try {
+        const perfilResponse = await api.get('/empleados/perfil');
+        profile = perfilResponse.data.perfil;
+      } catch {
+        console.warn("No se encontró perfil en /api/empleados/perfil. Usando datos básicos.");
+      }
+
+      setUser({
+        token,
+        profile,
+        id: userData.id,
+        rol_id: userData.rol_id,
+        correo: userData.correo
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error("Error en loginGoogle:", error);
+      throw error;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, setUser, loading, login, loginGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

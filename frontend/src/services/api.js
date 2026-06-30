@@ -24,6 +24,11 @@ export const obtenerEmpleados = async () => {
   return response.data;
 };
 
+export const obtenerDirectorio = async () => {
+  const response = await api.get('/empleados/directorio');
+  return response.data;
+};
+
 export const crearEmpleado = async (datos) => {
   const response = await api.post('/empleados', datos);
   return response.data;
