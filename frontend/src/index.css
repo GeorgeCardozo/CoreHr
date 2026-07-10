@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #004532;
   --color-secondary: #006c49;
@@ -31,6 +33,26 @@
   --font-body-md: "Inter", sans-serif;
   --font-body-lg: "Inter", sans-serif;
 }
+
+.dark {
+  --color-primary: #10b981;
+  --color-secondary: #14b8a6;
+  --color-background: #0b0f19;
+  --color-surface-dim: #101625;
+  --color-surface-bright: #1c253b;
+  --color-surface-container: #0e1320;
+  --color-surface-container-low: #0c101a;
+  --color-surface-container-lowest: #080b13;
+  --color-on-surface: #f8fafc;
+  --color-on-surface-variant: #94a3b8;
+  --color-on-primary: #0b0f19;
+  --color-primary-container: #064e3b;
+  --color-on-primary-container: #34d399;
+  --color-secondary-container: #0d9488;
+  --color-outline-variant: #1e293b;
+  --color-outline: #475569;
+}
+
 
 body {
   margin: 0;
@@ -80,4 +102,36 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: #1e293b transparent;
+}
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  aside,
+  header,
+  nav,
+  button,
+  .print-hidden,
+  .print\:hidden {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+    color: black !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+  }
 }

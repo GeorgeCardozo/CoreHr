@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import api, { actualizarEmpleado } from '../services/api';
 import { toast } from 'react-hot-toast';
 import defaultAvatar from '../assets/default_avatar.png';
 
 const PerfilEmpleado = () => {
   const { user, setUser, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const { id } = useParams();
   const navigate = useNavigate();
   const [downloading, setDownloading] = useState(false);
@@ -91,6 +93,33 @@ const PerfilEmpleado = () => {
   const manejarModuloEnDesarrollo = (e) => {
     e.preventDefault();
     toast('Módulo en desarrollo para la Fase 2', { icon: '🚧' });
+  };
+
+  const getAvatar = (emp) => {
+    if (emp?.foto_perfil) {
+      return `http://localhost:3000${emp.foto_perfil}`;
+    }
+    const nombres = emp?.nombres || 'C';
+    const apellidos = emp?.apellidos || 'Colaborador';
+    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
+    
+    const colores = [
+      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
+      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
+    ];
+    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
+    const color = colores[index];
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+        <rect width="100" height="100" fill="${color}" />
+        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
+          ${iniciales}
+        </text>
+      </svg>
+    `.trim().replace(/\s+/g, ' ');
+    
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   };
 
   const getFechaFormateadaStepper = (fechaStr) => {
@@ -214,30 +243,37 @@ const PerfilEmpleado = () => {
   }
 
   return (
-    <div className="bg-slate-50 font-body-md text-on-surface antialiased min-h-screen flex flex-col">
+    <div className="bg-background font-body-md text-on-surface antialiased min-h-screen flex flex-col transition-colors duration-200">
       {/* TopNavBar Shell */}
-      <header className="fixed top-0 w-full z-50 flex justify-between items-center px-8 h-16 bg-white/80 backdrop-blur-md border-b border-slate-100/50">
+      <header className="fixed top-0 w-full z-50 flex justify-between items-center px-8 h-16 bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant/30 transition-colors duration-200">
         <div className="flex items-center gap-8">
           <span className="font-headline-md text-headline-md font-bold text-primary">CoreRRHH</span>
           <nav className="hidden md:flex gap-2 items-center">
-            <Link className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-medium" to="/directorio">Directorio</Link>
-            <a className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-medium" href="#" onClick={manejarModuloEnDesarrollo}>Beneficios</a>
-            <a className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-medium" href="#" onClick={manejarModuloEnDesarrollo}>Capacitación</a>
-            <a className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-medium" href="#" onClick={manejarModuloEnDesarrollo}>Nómina</a>
+            <Link className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" to="/directorio">Directorio</Link>
+            <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Beneficios</a>
+            <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Capacitación</a>
+            <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Nómina</a>
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" 
+            onClick={toggleTheme}
+            title={theme === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
+          >
+            {theme === 'light' ? 'dark_mode' : 'light_mode'}
+          </button>
           <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>notifications</button>
-          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>settings</button>
+          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={() => navigate('/configuracion')}>settings</button>
           <div 
             onClick={logout}
             title="Cerrar Sesión"
-            className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer hover:opacity-80 transition-opacity"
+            className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer hover:opacity-80 transition-opacity"
           >
             <img 
               alt="Employee Profile Avatar" 
               className="w-full h-full object-cover" 
-              src={user?.profile?.foto_perfil ? `http://localhost:3000${user.profile.foto_perfil}` : defaultAvatar}
+              src={getAvatar(user?.profile)}
             />
           </div>
         </div>
@@ -319,11 +355,11 @@ const PerfilEmpleado = () => {
             {/* Profile Content */}
             <div className="px-8 pb-4 flex flex-col md:flex-row items-end justify-between gap-6 -mt-12 relative z-10 w-full">
               <div className="flex flex-col md:flex-row items-end gap-6">
-                <div className="w-32 h-32 rounded-full ring-4 ring-white shadow-md overflow-hidden bg-white">
+                <div className="w-32 h-32 rounded-full ring-4 ring-surface-container-lowest shadow-md overflow-hidden bg-surface-container-lowest">
                   <img 
                     alt="Perfil del colaborador" 
                     className="w-full h-full object-cover" 
-                    src={profile?.foto_perfil ? `http://localhost:3000${profile.foto_perfil}` : defaultAvatar}
+                    src={getAvatar(profile)}
                   />
                 </div>
                 <div className="pb-2">
@@ -356,8 +392,8 @@ const PerfilEmpleado = () => {
             <div className="lg:col-span-2 space-y-6">
               
               {/* Información Laboral */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-3 text-slate-800 text-lg font-semibold mb-6">
+              <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
+                <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">Apartment</span>
                   <h2>Información Laboral</h2>
                 </div>
@@ -421,8 +457,8 @@ const PerfilEmpleado = () => {
               </div>
 
               {/* Información Personal */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-3 text-slate-800 text-lg font-semibold mb-6">
+              <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
+                <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">Inbox_Text_Person</span>
                   <h2>Información Personal</h2>
                 </div>
@@ -477,8 +513,8 @@ const PerfilEmpleado = () => {
               </div>
          
               {/* Contacto de Emergencia */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-3 text-slate-800 text-lg font-semibold mb-6">
+              <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
+                <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">siren</span>
                   <h2>Contacto de Emergencia</h2>
                 </div>
@@ -508,8 +544,8 @@ const PerfilEmpleado = () => {
               </div>
 
               {/* Habilidades */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-3 text-slate-800 text-lg font-semibold mb-6">
+              <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
+                <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">psychology</span>
                   <h2>Habilidades</h2>
                 </div>
@@ -558,13 +594,13 @@ const PerfilEmpleado = () => {
                       )}
                     </button>
                     
-                    <button onClick={manejarModuloEnDesarrollo} className="w-full bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium py-2.5 px-4 rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-3">
-                      <span className="material-symbols-outlined text-slate-500">receipt_long</span>
+                    <button onClick={manejarModuloEnDesarrollo} className="w-full bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant text-sm font-semibold py-2.5 px-4 rounded-lg border border-outline-variant transition-all cursor-pointer flex items-center gap-3">
+                      <span className="material-symbols-outlined text-on-surface-variant">receipt_long</span>
                       <span>Ver Desprendibles de Pago</span>
                     </button>
                     
-                    <button onClick={manejarModuloEnDesarrollo} className="w-full bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium py-2.5 px-4 rounded-lg border border-slate-200 transition-all cursor-pointer flex items-center gap-3">
-                      <span className="material-symbols-outlined text-slate-500">event_available</span>
+                    <button onClick={manejarModuloEnDesarrollo} className="w-full bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant text-sm font-semibold py-2.5 px-4 rounded-lg border border-outline-variant transition-all cursor-pointer flex items-center gap-3">
+                      <span className="material-symbols-outlined text-on-surface-variant">event_available</span>
                       <span>Solicitar Vacaciones</span>
                     </button>
                   </div>

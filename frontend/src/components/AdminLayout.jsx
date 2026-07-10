@@ -1,11 +1,13 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import defaultAvatar from '../assets/default_avatar.png';
 import { toast } from 'react-hot-toast';
 
 const AdminLayout = ({ children }) => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -20,31 +22,66 @@ const AdminLayout = ({ children }) => {
     ? `${user.profile.nombres} ${user.profile.apellidos || ''}`
     : (user?.correo ? user.correo.split('@')[0] : 'Alex Rivera');
   const activeUserRole = user?.profile?.cargo || 'Senior HR Lead';
-  const activeUserAvatar = user?.profile?.foto_perfil
-    ? `http://localhost:3000${user.profile.foto_perfil}`
-    : defaultAvatar;
+  const getAvatar = (emp) => {
+    if (emp?.foto_perfil) {
+      return `http://localhost:3000${emp.foto_perfil}`;
+    }
+    const nombres = emp?.nombres || 'Alex';
+    const apellidos = emp?.apellidos || 'Rivera';
+    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
+    
+    const colores = [
+      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
+      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
+    ];
+    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
+    const color = colores[index];
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+        <rect width="100" height="100" fill="${color}" />
+        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
+          ${iniciales}
+        </text>
+      </svg>
+    `.trim().replace(/\s+/g, ' ');
+    
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  };
+
+  const activeUserAvatar = getAvatar(user?.profile);
 
   // Si el usuario no es administrador (rol_id !== 1), mostramos un layout simplificado o adaptado
   const isAdmin = user?.rol_id === 1;
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-white flex antialiased font-sans">
+    <div className="min-h-screen bg-background text-on-surface flex antialiased font-sans transition-colors duration-200">
       {/* Sidebar Navigation */}
-      <aside className="w-64 border-r border-slate-850 bg-[#0e1320] flex flex-col p-6 shrink-0 z-10">
-        <div className="mb-10 flex flex-col">
-          <span className="text-2xl font-extrabold text-emerald-400 tracking-tight">Admin Center</span>
-          <span className="text-[9px] font-extrabold text-slate-500 tracking-widest uppercase mt-1">HR Operations</span>
-        </div>
+      <aside className="w-64 border-r border-outline-variant bg-surface-container-low flex flex-col p-6 shrink-0 z-10 transition-colors duration-200">
+        {isAdmin ? (
+          <div className="mb-10 flex flex-col">
+            <span className="text-2xl font-extrabold text-primary tracking-tight">Admin Center</span>
+            <span className="text-[9px] font-extrabold text-on-surface-variant/80 tracking-widest uppercase mt-1">HR Operations</span>
+          </div>
+        ) : (
+          <div className="mb-10 flex items-center gap-3">
+            <img src="/src/assets/LogoSolo.png" alt="Logo" className="h-10 w-auto object-contain" />
+            <div className="flex flex-col justify-center">
+              <p className="text-sm font-bold text-on-surface leading-tight">Gimnasio Los Arrayanes</p>
+              <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Portal RRHH</p>
+            </div>
+          </div>
+        )}
 
         <nav className="flex-1 space-y-1.5">
           {isAdmin ? (
             <>
               <button 
                 onClick={() => navigate('/dashboard')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-medium cursor-pointer text-left ${
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/dashboard' 
-                    ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">grid_view</span>
@@ -53,10 +90,10 @@ const AdminLayout = ({ children }) => {
 
               <button 
                 onClick={() => navigate('/empleados')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-medium cursor-pointer text-left ${
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/empleados' || activePage === '/crear-empleado'
-                    ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">group</span>
@@ -65,10 +102,10 @@ const AdminLayout = ({ children }) => {
 
               <button 
                 onClick={() => navigate('/contratos')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-medium cursor-pointer text-left ${
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/contratos'
-                    ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">description</span>
@@ -77,15 +114,19 @@ const AdminLayout = ({ children }) => {
 
               <button 
                 onClick={manejarModuloEnDesarrollo}
-                className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-slate-800/30 hover:text-white rounded-xl transition-all text-xs font-medium cursor-pointer text-left"
+                className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
               >
                 <span className="material-symbols-outlined text-[20px]">payments</span>
                 <span>Nómina</span>
               </button>
 
               <button 
-                onClick={manejarModuloEnDesarrollo}
-                className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-slate-800/30 hover:text-white rounded-xl transition-all text-xs font-medium cursor-pointer text-left"
+                onClick={() => navigate('/configuracion')}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
+                  activePage === '/configuracion'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                }`}
               >
                 <span className="material-symbols-outlined text-[20px]">settings</span>
                 <span>Ajustes</span>
@@ -95,10 +136,10 @@ const AdminLayout = ({ children }) => {
             <>
               <button 
                 onClick={() => navigate('/perfil')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-medium cursor-pointer text-left ${
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage.startsWith('/perfil')
-                    ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">person</span>
@@ -107,10 +148,10 @@ const AdminLayout = ({ children }) => {
 
               <button 
                 onClick={() => navigate('/directorio')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-medium cursor-pointer text-left ${
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/directorio'
-                    ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">folder_shared</span>
@@ -120,10 +161,10 @@ const AdminLayout = ({ children }) => {
           )}
         </nav>
 
-        <div className="pt-4 border-t border-slate-850 space-y-1">
+        <div className="pt-4 border-t border-outline-variant space-y-1">
           <button 
             onClick={manejarModuloEnDesarrollo}
-            className="flex items-center gap-3 w-full px-4 py-3 text-slate-500 hover:bg-slate-800/30 hover:text-slate-350 rounded-xl transition-all text-xs font-medium cursor-pointer text-left"
+            className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/70 hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
           >
             <span className="material-symbols-outlined text-[20px]">help</span>
             <span>Soporte</span>
@@ -131,7 +172,7 @@ const AdminLayout = ({ children }) => {
 
           <button 
             onClick={logout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-slate-500 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-all text-xs font-medium cursor-pointer text-left"
+            className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/75 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
             <span>Cerrar Sesión</span>
@@ -142,14 +183,14 @@ const AdminLayout = ({ children }) => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Global Navigation Header */}
-        <header className="h-16 border-b border-slate-800 bg-[#0e1320] flex items-center justify-between px-8 z-10 shrink-0">
+        <header className="h-16 border-b border-outline-variant bg-surface-container-low flex items-center justify-between px-8 z-10 shrink-0 transition-colors duration-200">
           <div className="flex items-center gap-8">
             <div className="relative w-72">
-              <span className="absolute left-3 top-2.5 material-symbols-outlined text-slate-500 text-[18px]">search</span>
+              <span className="absolute left-3 top-2.5 material-symbols-outlined text-on-surface-variant text-[18px]">search</span>
               <input 
                 type="text" 
                 placeholder="Buscar colaboradores, archivos, tareas..."
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-lg py-1.5 pl-9 pr-3 text-xs text-slate-300 placeholder-slate-550 focus:outline-none focus:border-slate-700 transition-colors"
+                className="w-full bg-background border border-outline-variant rounded-lg py-1.5 pl-9 pr-3 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-outline transition-colors"
               />
             </div>
             
@@ -158,15 +199,19 @@ const AdminLayout = ({ children }) => {
                 onClick={() => navigate('/directorio')}
                 className={`font-bold h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${
                   activePage === '/directorio'
-                    ? 'text-emerald-450 border-b-2 border-emerald-500'
-                    : 'text-slate-450 hover:text-white border-b-2 border-transparent'
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
                 }`}
               >
                 Directorio
               </button>
               <button 
-                onClick={manejarModuloEnDesarrollo}
-                className="text-slate-450 hover:text-white h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer border-b-2 border-transparent"
+                onClick={() => navigate('/recursos')}
+                className={`h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${
+                  activePage === '/recursos'
+                    ? 'text-primary border-b-2 border-primary font-bold'
+                    : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
+                }`}
               >
                 Recursos
               </button>
@@ -175,16 +220,23 @@ const AdminLayout = ({ children }) => {
 
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <button className="material-symbols-outlined text-slate-400 p-2 hover:bg-slate-800/60 rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>notifications</button>
-              <button className="material-symbols-outlined text-slate-400 p-2 hover:bg-slate-800/60 rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>mail</button>
+              <button 
+                className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" 
+                onClick={toggleTheme}
+                title={theme === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
+              >
+                {theme === 'light' ? 'dark_mode' : 'light_mode'}
+              </button>
+              <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>notifications</button>
+              <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>mail</button>
             </div>
 
-            <div className="flex items-center gap-3 border-l border-slate-800 pl-6">
+            <div className="flex items-center gap-3 border-l border-outline-variant pl-6">
               <div className="flex flex-col text-right cursor-pointer" onClick={() => navigate('/perfil')}>
-                <span className="text-xs font-bold text-white leading-tight">{activeUserName}</span>
-                <span className="text-[10px] text-slate-450 font-semibold">{activeUserRole}</span>
+                <span className="text-xs font-bold text-on-surface leading-tight">{activeUserName}</span>
+                <span className="text-[10px] text-on-surface-variant font-semibold">{activeUserRole}</span>
               </div>
-              <div className="w-9 h-9 rounded-full bg-slate-800 overflow-hidden ring-2 ring-slate-800 cursor-pointer" onClick={() => navigate('/perfil')}>
+              <div className="w-9 h-9 rounded-full bg-surface-container overflow-hidden ring-2 ring-outline-variant cursor-pointer" onClick={() => navigate('/perfil')}>
                 <img 
                   alt="Current user avatar" 
                   className="w-full h-full object-cover" 
@@ -196,7 +248,7 @@ const AdminLayout = ({ children }) => {
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 p-8 overflow-y-auto bg-[#0b0f19]">
+        <main className="flex-1 p-8 overflow-y-auto bg-background transition-colors duration-200">
           {children}
         </main>
       </div>

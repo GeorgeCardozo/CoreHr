@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil } = require('../controllers/empleadoController');
+const { obtenerPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil, crearEmpleadosMasivo } = require('../controllers/empleadoController');
 const { verifyToken, verificarAdmin, verificarAdminOPropioEmpleado } = require('../middlewares/auth');
 const upload = require('../middlewares/upload');
 
@@ -16,6 +16,8 @@ router.get('/directorio', verifyToken, obtenerDirectorio);
 // Ruta: GET /api/empleados (Protegida por JWT)
 router.get('/', verifyToken, listarEmpleados);
 
+// Ruta: POST /api/empleados/bulk (Protegida por JWT y Administrador)
+router.post('/bulk', verifyToken, verificarAdmin, crearEmpleadosMasivo);
 
 // Ruta: POST /api/empleados (Protegida por JWT y Administrador)
 router.post('/', verifyToken, verificarAdmin, crearEmpleado);

@@ -240,6 +240,7 @@ const listarEmpleados = async (req, res) => {
   try {
     const result = await db.query(`
       SELECT e.*, u.correo,
+             (SELECT cargo FROM contratos c WHERE c.empleado_id = e.id AND c.estado = 'Activo' ORDER BY c.id DESC LIMIT 1) AS cargo,
              (SELECT COUNT(*) FROM contratos c WHERE c.empleado_id = e.id AND c.estado = 'Activo') > 0 AS tiene_contrato
       FROM empleados e 
       LEFT JOIN usuarios u ON e.usuario_id = u.id 
@@ -276,7 +277,8 @@ const actualizarEmpleado = async (req, res) => {
     correo_personal,
     contacto_emergencia,
     parentesco,
-    telefono_emergencia
+    telefono_emergencia,
+    direccion
   } = req.body;
 
   if (!documento_identidad || !nombres || !apellidos) {
@@ -326,8 +328,9 @@ const actualizarEmpleado = async (req, res) => {
           correo_personal = $15,
           contacto_emergencia = $16,
           parentesco = $17,
-          telefono_emergencia = $18
-      WHERE id = $19
+          telefono_emergencia = $18,
+          direccion = $19
+      WHERE id = $20
       RETURNING *
     `;
     const result = await client.query(queryText, [
@@ -349,6 +352,7 @@ const actualizarEmpleado = async (req, res) => {
       contacto_emergencia || null,
       parentesco || null,
       telefono_emergencia || null,
+      direccion || null,
       id
     ]);
 
@@ -595,6 +599,119 @@ const subirFotoPerfil = async (req, res) => {
   }
 };
 
+const crearEmpleadosMasivo = async (req, res) => {
+  const { empleados } = req.body;
+
+  if (!empleados || !Array.isArray(empleados) || empleados.length === 0) {
+    return res.status(400).json({ 
+      message: 'Se requiere una lista de colaboradores en el campo "empleados"' 
+    });
+  }
+
+  const pool = db.pool;
+  const client = await pool.connect();
+  const resultados = { creados: [], errores: [] };
+
+  try {
+    await client.query('BEGIN');
+
+    for (let i = 0; i < empleados.length; i++) {
+      const emp = empleados[i];
+      const { 
+        correo, 
+        contrasena, 
+        documento_identidad, 
+        nombres, 
+        apellidos,
+        telefono,
+        fecha_ingreso,
+        habilidades,
+        departamento,
+        tipo_genero,
+        correo_personal
+      } = emp;
+
+      // Validaciones básicas
+      if (!correo || !documento_identidad || !nombres || !apellidos) {
+        resultados.errores.push({ 
+          fila: i + 1, 
+          correo: correo || 'N/A', 
+          error: 'Faltan campos requeridos (correo, documento_identidad, nombres, apellidos)' 
+        });
+        continue;
+      }
+
+      // Contraseña por defecto es el documento de identidad si no se especifica
+      const passFinal = contrasena || documento_identidad.toString();
+      const hash = await bcrypt.hash(passFinal, 10);
+
+      try {
+        // Verificar si el correo ya existe
+        const checkUser = await client.query('SELECT id FROM usuarios WHERE correo = $1', [correo]);
+        if (checkUser.rows.length > 0) {
+          resultados.errores.push({ fila: i + 1, correo, error: 'El correo institucional ya está registrado' });
+          continue;
+        }
+
+        // Verificar si el documento ya existe
+        const checkEmp = await client.query('SELECT id FROM empleados WHERE documento_identidad = $1', [documento_identidad]);
+        if (checkEmp.rows.length > 0) {
+          resultados.errores.push({ fila: i + 1, correo, error: `El documento de identidad ${documento_identidad} ya está registrado` });
+          continue;
+        }
+
+        // Registrar usuario
+        const userResult = await client.query(
+          `INSERT INTO usuarios (correo, contrasena, rol_id) VALUES ($1, $2, 2) RETURNING id`,
+          [correo, hash]
+        );
+        const newUserId = userResult.rows[0].id;
+
+        // Registrar empleado
+        const finalHabilidades = Array.isArray(habilidades) ? habilidades : (habilidades ? habilidades.split(',').map(h => h.trim()) : null);
+        const employeeResult = await client.query(
+          `INSERT INTO empleados (
+            usuario_id, documento_identidad, nombres, apellidos, telefono, fecha_ingreso,
+            habilidades, departamento, tipo_genero, correo_personal
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING *`,
+          [
+            newUserId,
+            documento_identidad,
+            nombres,
+            apellidos,
+            telefono || null,
+            fecha_ingreso || new Date(),
+            finalHabilidades,
+            departamento || null,
+            tipo_genero || null,
+            correo_personal || null
+          ]
+        );
+
+        resultados.creados.push(employeeResult.rows[0]);
+      } catch (innerError) {
+        console.error('Error al insertar fila', i, innerError);
+        resultados.errores.push({ fila: i + 1, correo, error: innerError.message || 'Error de base de datos' });
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.status(201).json({
+      message: `Proceso masivo completado. Creados: ${resultados.creados.length}, Errores: ${resultados.errores.length}`,
+      ...resultados
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error general en crearEmpleadosMasivo:', error);
+    return res.status(500).json({ message: 'Error de servidor durante la carga masiva', error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   obtenerPerfil,
   crearEmpleado,
@@ -603,6 +720,7 @@ module.exports = {
   eliminarEmpleado,
   generarCertificado,
   obtenerDirectorio,
-  subirFotoPerfil
+  subirFotoPerfil,
+  crearEmpleadosMasivo
 };
 

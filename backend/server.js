@@ -6,6 +6,8 @@ require('dotenv').config();
 const authRoutes = require('./src/routes/authRoutes');
 const empleadoRoutes = require('./src/routes/empleadoRoutes');
 const contratoRoutes = require('./src/routes/contratoRoutes');
+const recursosRoutes = require('./src/routes/recursosRoutes');
+const solicitudRoutes = require('./src/routes/solicitudRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,11 +16,17 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.url}`);
+  next();
+});
 
 // Registro de rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/empleados', empleadoRoutes);
 app.use('/api/contratos', contratoRoutes);
+app.use('/api/recursos', recursosRoutes);
+app.use('/api/solicitudes', solicitudRoutes);
 
 // Endpoint de salud base
 app.get('/', (req, res) => {

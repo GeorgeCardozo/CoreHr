@@ -89,14 +89,14 @@ const CrearEmpleado = () => {
         <div>
           <button 
             onClick={() => navigate('/empleados')}
-            className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 mb-2 transition-colors"
+            className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 mb-2 transition-colors"
           >
             ← Volver a la Lista
           </button>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
             Registrar Nuevo Colaborador
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-on-surface-variant text-sm mt-1">
             Crea la cuenta de acceso y la ficha de empleado de forma unificada.
           </p>
         </div>
@@ -108,7 +108,7 @@ const CrearEmpleado = () => {
         )}
 
         {success && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm rounded-lg p-3">
+          <div className="bg-primary/10 border border-emerald-500/30 text-primary text-sm rounded-lg p-3">
             {success}
           </div>
         )}
@@ -116,9 +116,9 @@ const CrearEmpleado = () => {
         {/* Formulario Unificado a Dos Columnas */}
         <form 
           onSubmit={handleSubmit}
-          className="bg-slate-950/40 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6 backdrop-blur-md"
+          className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6 backdrop-blur-md"
         >
-          <h2 className="text-lg font-semibold border-b border-slate-800 pb-2 text-emerald-400">
+          <h2 className="text-lg font-semibold border-b border-outline-variant/60 pb-2 text-primary">
             Datos de Acceso del Usuario
           </h2>
           
@@ -126,7 +126,7 @@ const CrearEmpleado = () => {
             
             {/* Correo Institucional */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="correo">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="correo">
                 Correo Institucional *
               </label>
               <input
@@ -135,7 +135,7 @@ const CrearEmpleado = () => {
                 type="email"
                 required
                 placeholder="Ej. colaborador@empresa.com"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.correo}
                 onChange={handleChange}
               />
@@ -143,7 +143,7 @@ const CrearEmpleado = () => {
 
             {/* Contraseña Temporal */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="contrasena">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="contrasena">
                 Contraseña Temporal *
               </label>
               <input
@@ -152,7 +152,7 @@ const CrearEmpleado = () => {
                 type="text"
                 required
                 placeholder="Contraseña de primer ingreso"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.contrasena}
                 onChange={handleChange}
               />
@@ -160,7 +160,7 @@ const CrearEmpleado = () => {
 
           </div>
 
-          <h2 className="text-lg font-semibold border-b border-slate-800 pb-2 pt-4 text-emerald-400">
+          <h2 className="text-lg font-semibold border-b border-outline-variant/60 pb-2 pt-4 text-primary">
             Ficha de Datos del Empleado
           </h2>
 
@@ -168,7 +168,7 @@ const CrearEmpleado = () => {
 
             {/* Documento Identidad */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="documento_identidad">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="documento_identidad">
                 Documento de Identidad *
               </label>
               <input
@@ -177,7 +177,7 @@ const CrearEmpleado = () => {
                 type="text"
                 required
                 placeholder="Ej. 987654321B"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.documento_identidad}
                 onChange={handleChange}
               />
@@ -185,7 +185,7 @@ const CrearEmpleado = () => {
 
             {/* Nombres */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="nombres">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="nombres">
                 Nombres *
               </label>
               <input
@@ -194,7 +194,7 @@ const CrearEmpleado = () => {
                 type="text"
                 required
                 placeholder="Nombres completos"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.nombres}
                 onChange={handleChange}
               />
@@ -202,7 +202,7 @@ const CrearEmpleado = () => {
 
             {/* Apellidos */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="apellidos">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="apellidos">
                 Apellidos *
               </label>
               <input
@@ -211,7 +211,7 @@ const CrearEmpleado = () => {
                 type="text"
                 required
                 placeholder="Apellidos completos"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.apellidos}
                 onChange={handleChange}
               />
@@ -219,7 +219,7 @@ const CrearEmpleado = () => {
 
             {/* Teléfono */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="telefono">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="telefono">
                 Teléfono de Contacto
               </label>
               <input
@@ -227,7 +227,7 @@ const CrearEmpleado = () => {
                 name="telefono"
                 type="text"
                 placeholder="Ej. +34 600 000 000"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.telefono}
                 onChange={handleChange}
               />
@@ -235,14 +235,14 @@ const CrearEmpleado = () => {
 
             {/* Fecha Ingreso */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_ingreso">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="fecha_ingreso">
                 Fecha de Ingreso
               </label>
               <input
                 id="fecha_ingreso"
                 name="fecha_ingreso"
                 type="date"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.fecha_ingreso}
                 onChange={handleChange}
               />
@@ -250,14 +250,14 @@ const CrearEmpleado = () => {
 
             {/* Fecha Terminación */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_terminacion">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="fecha_terminacion">
                 Fecha de Terminación
               </label>
               <input
                 id="fecha_terminacion"
                 name="fecha_terminacion"
                 type="date"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.fecha_terminacion}
                 onChange={handleChange}
               />
@@ -265,7 +265,7 @@ const CrearEmpleado = () => {
 
             {/* Superior Inmediato */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="superior_inmediato">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="superior_inmediato">
                 Superior Inmediato
               </label>
               <input
@@ -273,7 +273,7 @@ const CrearEmpleado = () => {
                 name="superior_inmediato"
                 type="text"
                 placeholder="Ej. Dra. Marta Rivera"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.superior_inmediato}
                 onChange={handleChange}
               />
@@ -281,7 +281,7 @@ const CrearEmpleado = () => {
 
             {/* Departamento */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="departamento">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="departamento">
                 Departamento (Ej. Académico - STEM)
               </label>
               <input
@@ -289,7 +289,7 @@ const CrearEmpleado = () => {
                 name="departamento"
                 type="text"
                 placeholder="Ej. Académico - STEM"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.departamento}
                 onChange={handleChange}
               />
@@ -297,13 +297,13 @@ const CrearEmpleado = () => {
 
             {/* Género */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="tipo_genero">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="tipo_genero">
                 Género
               </label>
               <select
                 id="tipo_genero"
                 name="tipo_genero"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.tipo_genero}
                 onChange={handleChange}
               >
@@ -316,14 +316,14 @@ const CrearEmpleado = () => {
 
             {/* Fecha de Nacimiento */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_nacimiento">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="fecha_nacimiento">
                 Fecha de Nacimiento
               </label>
               <input
                 id="fecha_nacimiento"
                 name="fecha_nacimiento"
                 type="date"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.fecha_nacimiento}
                 onChange={handleChange}
               />
@@ -331,7 +331,7 @@ const CrearEmpleado = () => {
 
             {/* Correo Personal */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="correo_personal">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="correo_personal">
                 Correo Personal
               </label>
               <input
@@ -339,7 +339,7 @@ const CrearEmpleado = () => {
                 name="correo_personal"
                 type="email"
                 placeholder="Ej. personal@correo.com"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.correo_personal}
                 onChange={handleChange}
               />
@@ -347,7 +347,7 @@ const CrearEmpleado = () => {
 
             {/* Habilidades */}
             <div className="md:col-span-2">
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="habilidades">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="habilidades">
                 Habilidades (separadas por coma)
               </label>
               <input
@@ -355,7 +355,7 @@ const CrearEmpleado = () => {
                 name="habilidades"
                 type="text"
                 placeholder="Ej. Node.js, Inglés B2, Google Workspace"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.habilidades}
                 onChange={handleChange}
               />
@@ -363,14 +363,14 @@ const CrearEmpleado = () => {
 
             {/* Fecha Verificación Info Personal */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_info_personal">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="fecha_info_personal">
                 Fecha Verificación Info Personal
               </label>
               <input
                 id="fecha_info_personal"
                 name="fecha_info_personal"
                 type="date"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.fecha_info_personal}
                 onChange={handleChange}
               />
@@ -378,14 +378,14 @@ const CrearEmpleado = () => {
 
             {/* Fecha Verificación Soportes */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_soportes">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="fecha_soportes">
                 Fecha Verificación Soportes
               </label>
               <input
                 id="fecha_soportes"
                 name="fecha_soportes"
                 type="date"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.fecha_soportes}
                 onChange={handleChange}
               />
@@ -393,26 +393,26 @@ const CrearEmpleado = () => {
 
             {/* Fecha Validación Seguridad */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="fecha_seguridad">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="fecha_seguridad">
                 Fecha Validación Seguridad
               </label>
               <input
                 id="fecha_seguridad"
                 name="fecha_seguridad"
                 type="date"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.fecha_seguridad}
                 onChange={handleChange}
               />
             </div>
 
-            <h2 className="text-lg font-semibold border-b border-slate-800 pb-2 pt-4 md:col-span-2 text-emerald-400">
+            <h2 className="text-lg font-semibold border-b border-outline-variant/60 pb-2 pt-4 md:col-span-2 text-primary">
               Contacto de Emergencia
             </h2>
 
             {/* Contacto de Emergencia - Nombre */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="contacto_emergencia">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="contacto_emergencia">
                 Nombre del Contacto
               </label>
               <input
@@ -420,7 +420,7 @@ const CrearEmpleado = () => {
                 name="contacto_emergencia"
                 type="text"
                 placeholder="Nombre completo"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-550 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.contacto_emergencia}
                 onChange={handleChange}
               />
@@ -428,7 +428,7 @@ const CrearEmpleado = () => {
 
             {/* Contacto de Emergencia - Parentesco */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="parentesco">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="parentesco">
                 Parentesco
               </label>
               <input
@@ -436,7 +436,7 @@ const CrearEmpleado = () => {
                 name="parentesco"
                 type="text"
                 placeholder="Ej. Madre, Cónyuge, Hermano"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-550 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.parentesco}
                 onChange={handleChange}
               />
@@ -444,7 +444,7 @@ const CrearEmpleado = () => {
 
             {/* Contacto de Emergencia - Teléfono */}
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2" htmlFor="telefono_emergencia">
+              <label className="block text-on-surface-variant text-sm font-medium mb-2" htmlFor="telefono_emergencia">
                 Teléfono de Emergencia
               </label>
               <input
@@ -452,7 +452,7 @@ const CrearEmpleado = () => {
                 name="telefono_emergencia"
                 type="text"
                 placeholder="Ej. +57 300 000 0000"
-                className="w-full bg-slate-800/40 border border-slate-700/60 rounded-lg py-2.5 px-4 text-white placeholder-slate-550 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-550 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.telefono_emergencia}
                 onChange={handleChange}
               />
@@ -461,18 +461,18 @@ const CrearEmpleado = () => {
           </div>
 
           {/* Botones */}
-          <div className="flex justify-end gap-4 border-t border-slate-800 pt-6">
+          <div className="flex justify-end gap-4 border-t border-outline-variant/60 pt-6">
             <button
               type="button"
               onClick={() => navigate('/empleados')}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+              className="bg-surface-container hover:bg-surface-container-low text-on-surface-variant border border-outline-variant px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg py-2.5 px-6 shadow-lg hover:shadow-emerald-500/20 transition-all disabled:opacity-50"
+              className="bg-primary hover:bg-primary/90 text-on-primary font-semibold rounded-lg py-2.5 px-6 shadow-lg hover:shadow-emerald-500/20 transition-all disabled:opacity-50"
             >
               {loading ? 'Registrando...' : 'Registrar Colaborador'}
             </button>

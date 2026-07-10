@@ -34,6 +34,11 @@ export const crearEmpleado = async (datos) => {
   return response.data;
 };
 
+export const crearEmpleadosMasivo = async (empleados) => {
+  const response = await api.post('/empleados/bulk', { empleados });
+  return response.data;
+};
+
 export const obtenerUsuarios = async () => {
   const response = await api.get('/auth/usuarios');
   return response.data;
@@ -54,6 +59,20 @@ export const actualizarEmpleado = async (id, datos) => {
   return response.data;
 };
 
+export const obtenerPerfil = async (id) => {
+  const response = await api.get(id ? `/empleados/perfil/${id}` : '/empleados/perfil');
+  return response.data;
+};
+
+export const subirFotoPerfil = async (formData) => {
+  const response = await api.put('/empleados/perfil/foto', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
 export const eliminarEmpleado = async (id) => {
   const response = await api.delete(`/empleados/${id}`);
   return response.data;
@@ -61,6 +80,27 @@ export const eliminarEmpleado = async (id) => {
 
 export const actualizarContrato = async (id, datos) => {
   const response = await api.put(`/contratos/${id}`, datos);
+  return response.data;
+};
+
+// Recursos & Solicitudes
+export const enviarMensajeChat = async (mensaje) => {
+  const response = await api.post('/recursos/chat', { mensaje });
+  return response.data;
+};
+
+export const crearSolicitud = async (solicitud) => {
+  const response = await api.post('/solicitudes', solicitud);
+  return response.data;
+};
+
+export const obtenerSolicitudes = async () => {
+  const response = await api.get('/solicitudes');
+  return response.data;
+};
+
+export const actualizarEstadoSolicitud = async (id, payload) => {
+  const response = await api.put(`/solicitudes/${id}/estado`, payload);
   return response.data;
 };
 

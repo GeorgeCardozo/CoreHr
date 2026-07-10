@@ -35,6 +35,11 @@ export const AuthProvider = ({ children }) => {
             throw new Error('Token inválido o corrupto');
           }
 
+          // Verificar si el token ya expiró en tiempo del cliente
+          if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+            throw new Error('Token expirado');
+          }
+
           // 2. Intentamos cargar el perfil completo, pero si falla (404) no deslogueamos al usuario
           let perfil = null;
           try {
@@ -42,6 +47,10 @@ export const AuthProvider = ({ children }) => {
             perfil = response.data.perfil;
           } catch (profileError) {
             console.warn('No se pudo obtener el perfil completo, continuando con datos básicos:', profileError.message);
+            // Si el error es de autenticación (401 o 403), el token es inválido/expiró en el servidor
+            if (profileError.response && (profileError.response.status === 401 || profileError.response.status === 403)) {
+              throw profileError;
+            }
           }
 
           setUser({
