@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -10,6 +9,7 @@ import PerfilEmpleado from './pages/PerfilEmpleado';
 import Directorio from './pages/Directorio';
 import Configuracion from './pages/Configuracion';
 import Recursos from './pages/Recursos';
+import GestionSolicitudes from './pages/GestionSolicitudes';
 import { Toaster } from 'react-hot-toast';
 import AdminLayout from './components/AdminLayout';
 
@@ -74,7 +74,7 @@ const Dashboard = () => {
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl p-6 shadow-xl transition-colors duration-200">
-          <h2 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+          <h2 className="text-xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
             Bienvenido a Admin Center
           </h2>
           <p className="text-on-surface-variant text-xs mt-1 font-semibold uppercase tracking-wider">
@@ -198,6 +198,14 @@ function App() {
               element={
                 <AdminRoute>
                   <GestionContratos />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/solicitudes"
+              element={
+                <AdminRoute>
+                  <GestionSolicitudes />
                 </AdminRoute>
               }
             />

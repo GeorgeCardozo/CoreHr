@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { crearEmpleado } from '../services/api';
 import AdminLayout from '../components/AdminLayout';
@@ -93,7 +93,7 @@ const CrearEmpleado = () => {
           >
             ← Volver a la Lista
           </button>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
             Registrar Nuevo Colaborador
           </h1>
           <p className="text-on-surface-variant text-sm mt-1">

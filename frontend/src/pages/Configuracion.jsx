@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { obtenerPerfil, actualizarEmpleado, subirFotoPerfil } from '../services/api';
+import { obtenerPerfil, actualizarEmpleado, subirFotoPerfil, getAssetUrl } from '../services/api';
 import { toast } from 'react-hot-toast';
-import AdminLayout from '../components/AdminLayout';
 
 const Configuracion = () => {
   const { user, setUser, logout } = useAuth();
@@ -140,7 +139,7 @@ const Configuracion = () => {
   const getAvatar = () => {
     if (previewUrl) return previewUrl;
     if (profile?.foto_perfil) {
-      return `http://localhost:3000${profile.foto_perfil}`;
+      return getAssetUrl(profile.foto_perfil);
     }
     const nombres = profile?.nombres || user?.correo?.split('@')[0] || 'C';
     const apellidos = profile?.apellidos || 'Colaborador';
@@ -170,10 +169,8 @@ const Configuracion = () => {
     : (user?.correo ? user.correo.split('@')[0] : 'Alex Rivera');
   const activeUserRole = user?.profile?.cargo || 'Colaborador';
   const activeUserAvatar = user?.profile?.foto_perfil
-    ? `http://localhost:3000${user.profile.foto_perfil}`
+    ? getAssetUrl(user.profile.foto_perfil)
     : getAvatar();
-
-  const isAdmin = user?.rol_id === 1;
 
   const pageContent = (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">

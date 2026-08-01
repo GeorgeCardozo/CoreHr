@@ -1,7 +1,19 @@
 import axios from 'axios';
 
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+export const API_BASE_URL = configuredApiUrl || '/api';
+export const API_ORIGIN = configuredApiUrl
+  ? configuredApiUrl.replace(/\/api\/?$/, '')
+  : '';
+
+export const getAssetUrl = (assetPath) => {
+  if (!assetPath) return '';
+  if (/^https?:\/\//i.test(assetPath) || assetPath.startsWith('data:')) return assetPath;
+  return `${API_ORIGIN}${assetPath}`;
+};
+
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL: API_BASE_URL,
 });
 
 // Interceptor para inyectar automáticamente el token JWT en las cabeceras
@@ -65,11 +77,7 @@ export const obtenerPerfil = async (id) => {
 };
 
 export const subirFotoPerfil = async (formData) => {
-  const response = await api.put('/empleados/perfil/foto', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  const response = await api.put('/empleados/perfil/foto', formData);
   return response.data;
 };
 
@@ -94,6 +102,12 @@ export const crearSolicitud = async (solicitud) => {
   return response.data;
 };
 
+export const obtenerAdjuntoSolicitud = async (url) => {
+  const requestPath = url?.startsWith('/api/') ? url.slice(4) : url;
+  const response = await api.get(requestPath, { responseType: 'blob' });
+  return response.data;
+};
+
 export const obtenerSolicitudes = async () => {
   const response = await api.get('/solicitudes');
   return response.data;
@@ -101,6 +115,22 @@ export const obtenerSolicitudes = async () => {
 
 export const actualizarEstadoSolicitud = async (id, payload) => {
   const response = await api.put(`/solicitudes/${id}/estado`, payload);
+  return response.data;
+};
+
+// Notificaciones
+export const obtenerNotificaciones = async () => {
+  const response = await api.get('/notificaciones');
+  return response.data;
+};
+
+export const marcarNotificacionLeida = async (id) => {
+  const response = await api.put(`/notificaciones/${id}/leida`);
+  return response.data;
+};
+
+export const marcarTodasNotificacionesLeidas = async () => {
+  const response = await api.put('/notificaciones/marcar-todas');
   return response.data;
 };
 

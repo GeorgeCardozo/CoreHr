@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { obtenerEmpleados, obtenerContratos, crearContrato, actualizarContrato, actualizarEmpleado } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import defaultAvatar from '../assets/default_avatar.png';
+import { obtenerEmpleados, obtenerContratos, crearContrato, actualizarContrato, actualizarEmpleado, getAssetUrl } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
 
@@ -84,8 +82,11 @@ const FloatingSelect = ({ label, id, name, value, onChange, options, required = 
   );
 };
 
+// Se conservan como componentes reutilizables para futuras pantallas de formularios.
+void FloatingInput;
+void FloatingSelect;
+
 const GestionContratos = () => {
-  const { user, logout } = useAuth();
   const [empleados, setEmpleados] = useState([]);
   const [contratos, setContratos] = useState([]);
   const [formData, setFormData] = useState({
@@ -142,7 +143,7 @@ const GestionContratos = () => {
     setIsEditing(true);
     setShowForm(true);
     setEditingContractId(contrato.id);
-    
+
     let formattedInicio = '';
     if (contrato.fecha_inicio) {
       const d = new Date(contrato.fecha_inicio);
@@ -151,7 +152,7 @@ const GestionContratos = () => {
       const day = String(d.getDate()).padStart(2, '0');
       formattedInicio = `${year}-${month}-${day}`;
     }
-    
+
     let formattedFin = '';
     if (contrato.fecha_fin) {
       const d = new Date(contrato.fecha_fin);
@@ -219,7 +220,7 @@ const GestionContratos = () => {
     try {
       if (isEditing) {
         await actualizarContrato(editingContractId, payload);
-        
+
         // Sincronizar departamento editado en el perfil del empleado
         const emp = empleados.find(e => Number(e.id) === Number(formData.empleado_id));
         if (emp && formData.departamento !== emp.departamento) {
@@ -228,13 +229,13 @@ const GestionContratos = () => {
             departamento: formData.departamento
           });
         }
-        
+
         toast.success('Contrato laboral actualizado con éxito.');
         setSuccess('Contrato laboral actualizado con éxito.');
         handleCancelEdit();
       } else {
         await crearContrato(payload);
-        
+
         // Sincronizar departamento asignado en el perfil del empleado
         const emp = empleados.find(e => Number(e.id) === Number(formData.empleado_id));
         if (emp && formData.departamento !== emp.departamento) {
@@ -243,12 +244,12 @@ const GestionContratos = () => {
             departamento: formData.departamento
           });
         }
-        
+
         toast.success('Contrato laboral asignado con éxito.');
         setSuccess('Contrato laboral asignado con éxito.');
         handleCancelEdit();
       }
-      
+
       // Recargar contratos y empleados para tener la información fresca
       const [empData, conData] = await Promise.all([
         obtenerEmpleados(),
@@ -273,14 +274,14 @@ const GestionContratos = () => {
 
   const getAvatar = (contrato) => {
     if (contrato?.foto_perfil) {
-      return `http://localhost:3000${contrato.foto_perfil}`;
+      return getAssetUrl(contrato.foto_perfil);
     }
     const nombres = contrato?.nombres || 'C';
     const apellidos = contrato?.apellidos || 'Colaborador';
     const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    
+
     const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
+      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
       '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
     ];
     const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
@@ -294,7 +295,7 @@ const GestionContratos = () => {
         </text>
       </svg>
     `.trim().replace(/\s+/g, ' ');
-    
+
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   };
 
@@ -312,15 +313,6 @@ const GestionContratos = () => {
     }).format(parseFloat(val))} / mes`;
   };
 
-  // Nombres del usuario activo
-  const activeUserName = user?.profile
-    ? `${user.profile.nombres} ${user.profile.apellidos || ''}`
-    : (user?.correo ? user.correo.split('@')[0] : 'Alex Rivera');
-  const activeUserRole = user?.profile?.cargo || 'Senior HR Lead';
-  const activeUserAvatar = user?.profile?.foto_perfil
-    ? `http://localhost:3000${user.profile.foto_perfil}`
-    : defaultAvatar;
-
   if (isEditing) {
     const selectedEmp = empleados.find(emp => emp.id.toString() === formData.empleado_id);
     const documentId = selectedEmp?.documento_identidad || 'No disponible';
@@ -329,26 +321,26 @@ const GestionContratos = () => {
     const apellidos = selectedEmp?.apellidos || formData.empleado_nombre.split(' ').slice(1).join(' ');
 
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans transition-colors duration-200">
+      <div className="min-h-screen bg-background text-on-surface font-sans transition-colors duration-200">
         <form onSubmit={handleSubmit} className="w-full flex flex-col min-h-screen">
-          
+
           {/* Main Content Area */}
           <main className="flex-1 max-w-4xl w-full mx-auto py-12 px-6 pb-28 space-y-8">
-            
+
             {/* Breadcrumbs and Title */}
             <div className="space-y-2">
-              <nav className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+              <nav className="text-xs font-semibold text-on-surface-variant flex items-center gap-1.5">
                 <span>Contratos</span>
                 <span className="material-symbols-outlined text-[12px]">chevron_right</span>
-                <span className="text-slate-600">Editar Contrato</span>
+                <span className="text-on-surface">Editar Contrato</span>
               </nav>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-2xl font-black text-on-surface tracking-tight">
                 Editar Contrato: {formData.empleado_nombre}
               </h1>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-4 shadow-sm flex items-center gap-2">
+              <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs rounded-xl p-4 shadow-sm flex items-center gap-2">
                 <span className="material-symbols-outlined text-[18px]">error</span>
                 <span>{error}</span>
               </div>
@@ -356,65 +348,65 @@ const GestionContratos = () => {
 
             {/* Form Steps / Cards */}
             <div className="space-y-6">
-              
+
               {/* Card 1: Información del Colaborador */}
-              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm space-y-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 font-extrabold flex items-center justify-center text-sm shadow-sm select-none border border-emerald-100">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-extrabold flex items-center justify-center text-sm shadow-sm select-none border border-primary/20">
                     1
                   </div>
-                  <h3 className="text-sm font-bold text-slate-800 tracking-tight uppercase">
+                  <h3 className="text-sm font-bold text-on-surface tracking-tight uppercase">
                     Información del Colaborador
                   </h3>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 tracking-widest uppercase mb-1.5">Nombres</label>
-                    <input 
-                      type="text" 
-                      value={nombres} 
-                      readOnly 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-4 text-slate-500 text-xs focus:outline-none cursor-not-allowed font-medium" 
+                    <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Nombres</label>
+                    <input
+                      type="text"
+                      value={nombres}
+                      readOnly
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface-variant text-xs focus:outline-none cursor-not-allowed font-medium"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 tracking-widest uppercase mb-1.5">Apellidos</label>
-                    <input 
-                      type="text" 
-                      value={apellidos} 
-                      readOnly 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-4 text-slate-500 text-xs focus:outline-none cursor-not-allowed font-medium" 
+                    <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Apellidos</label>
+                    <input
+                      type="text"
+                      value={apellidos}
+                      readOnly
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface-variant text-xs focus:outline-none cursor-not-allowed font-medium"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 tracking-widest uppercase mb-1.5">Documento de Identidad</label>
-                    <input 
-                      type="text" 
-                      value={documentId} 
-                      readOnly 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-4 text-slate-500 text-xs focus:outline-none cursor-not-allowed font-medium" 
+                    <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Documento de Identidad</label>
+                    <input
+                      type="text"
+                      value={documentId}
+                      readOnly
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface-variant text-xs focus:outline-none cursor-not-allowed font-medium"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 tracking-widest uppercase mb-1.5">Correo Institucional</label>
-                    <input 
-                      type="text" 
-                      value={email} 
-                      readOnly 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-4 text-slate-500 text-xs focus:outline-none cursor-not-allowed font-medium" 
+                    <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Correo Institucional</label>
+                    <input
+                      type="text"
+                      value={email}
+                      readOnly
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface-variant text-xs focus:outline-none cursor-not-allowed font-medium"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Card 2: Términos del Contrato */}
-              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm space-y-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 font-extrabold flex items-center justify-center text-sm shadow-sm select-none border border-emerald-100">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-extrabold flex items-center justify-center text-sm shadow-sm select-none border border-primary/20">
                     2
                   </div>
-                  <h3 className="text-sm font-bold text-slate-800 tracking-tight uppercase">
+                  <h3 className="text-sm font-bold text-on-surface tracking-tight uppercase">
                     Términos del Contrato
                   </h3>
                 </div>
@@ -423,24 +415,24 @@ const GestionContratos = () => {
                   {/* Grid 1: fechas */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 tracking-widest uppercase mb-1.5">Fecha de Inicio *</label>
-                      <input 
-                        type="date" 
+                      <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Fecha de Inicio *</label>
+                      <input
+                        type="date"
                         name="fecha_inicio"
                         required
                         value={formData.fecha_inicio}
                         onChange={handleChange}
-                        className="w-full bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/25 rounded-lg py-2.5 px-4 text-slate-750 text-xs focus:outline-none transition-all font-medium" 
+                        className="w-full bg-background border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-lg py-2.5 px-4 text-on-surface text-xs focus:outline-none transition-all font-medium"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 tracking-widest uppercase mb-1.5">Fecha de Fin</label>
-                      <input 
-                        type="date" 
+                      <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Fecha de Fin</label>
+                      <input
+                        type="date"
                         name="fecha_fin"
                         value={formData.fecha_fin}
                         onChange={handleChange}
-                        className="w-full bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/25 rounded-lg py-2.5 px-4 text-slate-755 text-xs focus:outline-none transition-all font-medium" 
+                        className="w-full bg-background border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-lg py-2.5 px-4 text-on-surface text-xs focus:outline-none transition-all font-medium"
                       />
                     </div>
                   </div>
@@ -448,29 +440,29 @@ const GestionContratos = () => {
                   {/* Grid 2: tipo contrato y salario */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 tracking-widest uppercase mb-1.5">Tipo de Contrato *</label>
-                      <select 
+                      <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Tipo de Contrato *</label>
+                      <select
                         name="tipo_contrato"
                         required
                         value={formData.tipo_contrato}
                         onChange={handleChange}
-                        className="w-full bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/25 rounded-lg py-2.5 px-4 text-slate-700 text-xs focus:outline-none transition-all font-medium cursor-pointer"
+                        className="w-full bg-background border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-lg py-2.5 px-4 text-on-surface text-xs focus:outline-none transition-all font-medium cursor-pointer"
                       >
                         <option value="Indefinido">Indefinido</option>
                         <option value="Fijo">Término Fijo</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 tracking-widest uppercase mb-1.5">Salario Mensual (COP) *</label>
-                      <div className="relative rounded-lg border border-slate-200 focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-500/25 transition-all bg-white overflow-hidden">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">$</span>
-                        <input 
-                          type="number" 
+                      <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Salario Mensual (COP) *</label>
+                      <div className="relative rounded-lg border border-outline-variant focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30 transition-all bg-background overflow-hidden">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-xs font-bold">$</span>
+                        <input
+                          type="number"
                           name="salario"
                           required
                           value={formData.salario}
                           onChange={handleChange}
-                          className="w-full bg-transparent border-0 pl-7 pr-4 py-2.5 text-slate-700 text-xs focus:outline-none font-medium" 
+                          className="w-full bg-transparent border-0 pl-7 pr-4 py-2.5 text-on-surface text-xs focus:outline-none font-medium"
                           placeholder="0.00"
                         />
                       </div>
@@ -480,24 +472,24 @@ const GestionContratos = () => {
                   {/* Cargo y Estado */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 tracking-widest uppercase mb-1.5">Cargo / Departamento *</label>
-                      <input 
-                        type="text" 
+                      <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Cargo / Departamento *</label>
+                      <input
+                        type="text"
                         name="cargo"
                         required
                         value={formData.cargo}
                         onChange={handleChange}
-                        className="w-full bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/25 rounded-lg py-2.5 px-4 text-slate-700 text-xs focus:outline-none transition-all font-medium" 
+                        className="w-full bg-background border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-lg py-2.5 px-4 text-on-surface text-xs focus:outline-none transition-all font-medium"
                         placeholder="Ej. Soporte TI"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 tracking-widest uppercase mb-1.5">Estado del Contrato</label>
-                      <select 
+                      <label className="block text-[10px] font-extrabold text-on-surface-variant tracking-widest uppercase mb-1.5">Estado del Contrato</label>
+                      <select
                         name="estado"
                         value={formData.estado}
                         onChange={handleChange}
-                        className="w-full bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/25 rounded-lg py-2.5 px-4 text-slate-700 text-xs focus:outline-none transition-all font-medium cursor-pointer"
+                        className="w-full bg-background border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-lg py-2.5 px-4 text-on-surface text-xs focus:outline-none transition-all font-medium cursor-pointer"
                       >
                         <option value="Activo">Activo</option>
                         <option value="Inactivo">Inactivo</option>
@@ -513,11 +505,11 @@ const GestionContratos = () => {
           </main>
 
           {/* Sticky Footer Bar */}
-          <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-slate-200 py-4 px-8 flex justify-end items-center gap-3 z-50">
+          <footer className="fixed bottom-0 left-0 right-0 bg-surface-container-lowest/90 backdrop-blur border-t border-outline-variant py-4 px-8 flex justify-end items-center gap-3 z-50">
             <button
               type="button"
               onClick={handleCancelEdit}
-              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-5 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              className="bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant border border-outline-variant px-5 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
             >
               Cancelar
             </button>
@@ -549,7 +541,7 @@ const GestionContratos = () => {
     return (
       <AdminLayout>
         <div className="space-y-8 max-w-4xl mx-auto py-4">
-          
+
           {/* Breadcrumbs and Title */}
           <div className="space-y-2">
             <nav className="text-xs font-semibold text-on-surface-variant/70 flex items-center gap-1.5">
@@ -573,7 +565,7 @@ const GestionContratos = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            
+
             {/* Card 1: Información del Colaborador */}
             <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 shadow-xl space-y-6">
               <div className="flex items-center gap-3">
@@ -599,12 +591,12 @@ const GestionContratos = () => {
                     onChange={(e) => {
                       const empId = e.target.value;
                       const emp = empleados.find(emp => Number(emp.id) === Number(empId));
-                      
+
                       // Buscar el cargo del contrato más reciente para este colaborador
                       const lastContract = contratos
                         .filter(con => Number(con.empleado_id) === Number(empId))
                         .sort((a, b) => b.id - a.id)[0];
-                      
+
                       setFormData({
                         ...formData,
                         empleado_id: empId,
@@ -879,7 +871,7 @@ const GestionContratos = () => {
             </div>
           ) : (
             <div className="space-y-6">
-                
+
                 {/* Metrics Row */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* METRIC 1: TOTAL STAFF */}
@@ -909,7 +901,7 @@ const GestionContratos = () => {
                   </div>
 
                   {/* METRIC 3: OPEN ROLES */}
-                  <div 
+                  <div
                     onClick={() => navigate('/empleados?filtro=sin-contrato')}
                     className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 shadow-xl flex flex-col justify-between transition-all duration-350 hover:border-amber-500/30 hover:shadow-amber-500/5 cursor-pointer group"
                   >
@@ -936,7 +928,7 @@ const GestionContratos = () => {
 
                     <div className="flex items-center gap-3">
                       {!showForm && (
-                        <button 
+                        <button
                           onClick={() => {
                             setIsEditing(false);
                             setShowForm(true);
@@ -961,7 +953,7 @@ const GestionContratos = () => {
                       )}
 
                       <div className="flex bg-background border border-outline-variant/60 rounded-lg p-0.5">
-                        <button 
+                        <button
                           onClick={() => setFiltroEstado('Todos')}
                           className={`px-3 py-1 text-[10px] font-extrabold rounded-md transition-all cursor-pointer ${
                             filtroEstado === 'Todos' ? 'bg-surface-container-lowest text-on-surface' : 'text-on-surface-variant hover:text-on-surface-variant'
@@ -969,7 +961,7 @@ const GestionContratos = () => {
                         >
                           Todos
                         </button>
-                        <button 
+                        <button
                           onClick={() => setFiltroEstado('Activo')}
                           className={`px-3 py-1 text-[10px] font-extrabold rounded-md transition-all cursor-pointer ${
                             filtroEstado === 'Activo' ? 'bg-surface-container-lowest text-on-surface' : 'text-on-surface-variant hover:text-on-surface-variant'
@@ -977,7 +969,7 @@ const GestionContratos = () => {
                         >
                           Activos
                         </button>
-                        <button 
+                        <button
                           onClick={() => setFiltroEstado('Inactivo')}
                           className={`px-3 py-1 text-[10px] font-extrabold rounded-md transition-all cursor-pointer ${
                             filtroEstado === 'Inactivo' ? 'bg-surface-container-lowest text-on-surface' : 'text-on-surface-variant hover:text-on-surface-variant'
@@ -987,7 +979,7 @@ const GestionContratos = () => {
                         </button>
                       </div>
 
-                      <button 
+                      <button
                         onClick={manejarModuloEnDesarrollo}
                         className="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant/60 hover:border-outline-variant bg-background hover:bg-surface-container-lowest rounded-lg text-on-surface-variant text-xs font-bold transition-all cursor-pointer"
                       >
@@ -1019,10 +1011,10 @@ const GestionContratos = () => {
                             <tr key={contrato.id} className="group hover:bg-surface-container/10 transition-colors">
                               <td className="py-3.5 pr-4 flex items-center gap-3 min-w-0">
                                 <div className="w-8 h-8 rounded-full bg-surface-container overflow-hidden shrink-0 border border-outline-variant/60">
-                                  <img 
+                                  <img
                                     alt={`${contrato.nombres} profile avatar`}
-                                    className="w-full h-full object-cover" 
-                                    src={getAvatar(contrato)} 
+                                    className="w-full h-full object-cover"
+                                    src={getAvatar(contrato)}
                                   />
                                 </div>
                                 <div className="flex flex-col min-w-0">
@@ -1042,8 +1034,8 @@ const GestionContratos = () => {
                               </td>
                               <td className="py-3.5 px-4">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-md transition-all ${
-                                  contrato.estado === 'Activo' 
-                                    ? 'bg-primary/10 text-primary border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.12)]' 
+                                  contrato.estado === 'Activo'
+                                    ? 'bg-primary/10 text-primary border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.12)]'
                                     : 'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_12px_rgba(239,68,68,0.12)]'
                                 }`}>
                                   <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${contrato.estado === 'Activo' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></span>
@@ -1072,13 +1064,13 @@ const GestionContratos = () => {
                       Mostrando {contratosFiltrados.length > 0 ? 1 : 0} a {contratosFiltrados.length} de {contratosFiltrados.length} colaboradores
                     </span>
                     <div className="flex gap-2">
-                      <button 
+                      <button
                         onClick={manejarModuloEnDesarrollo}
                         className="px-2 py-1 bg-background border border-outline-variant/60 rounded hover:bg-surface-container-lowest transition-colors text-on-surface-variant font-bold cursor-pointer"
                       >
                         &lt;
                       </button>
-                      <button 
+                      <button
                         onClick={manejarModuloEnDesarrollo}
                         className="px-2 py-1 bg-background border border-outline-variant/60 rounded hover:bg-surface-container-lowest transition-colors text-on-surface-variant font-bold cursor-pointer"
                       >

@@ -1,189 +1,152 @@
 const db = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const pool = require('../config/db');
 const { OAuth2Client } = require('google-auth-library');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ALLOWED_ROLES = new Set([1, 2]);
+
+const getJwtSecret = () => {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET no está configurado correctamente.');
+  }
+  return process.env.JWT_SECRET;
+};
+
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+
+const createToken = (usuario, expiresIn = process.env.JWT_EXPIRES_IN || '8h') => jwt.sign(
+  { id: usuario.id, rol_id: usuario.rol_id, correo: usuario.correo },
+  getJwtSecret(),
+  { expiresIn }
+);
 
 const login = async (req, res) => {
-  const { correo, contrasena } = req.body;
+  const correo = normalizeEmail(req.body?.correo);
+  const contrasena = req.body?.contrasena;
 
-  if (!correo || !contrasena) {
-    return res.status(400).json({ message: 'Se requiere correo y contrasena' });
+  if (!EMAIL_PATTERN.test(correo) || typeof contrasena !== 'string' || contrasena.length === 0) {
+    return res.status(400).json({ message: 'Se requiere un correo válido y una contraseña.' });
   }
 
   try {
-    // Buscar al usuario en la tabla usuarios por correo
-    const result = await db.query('SELECT * FROM usuarios WHERE correo = $1', [correo]);
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
-
-    const usuario = result.rows[0];
-
-    // Verificar la contraseña con bcrypt (buscando contrasena o password de la BD)
-    const storedHash = usuario.contrasena || usuario.password;
-    if (!storedHash) {
-      return res.status(500).json({ message: 'Error de configuración de usuario en la base de datos' });
-    }
-
-    const passwordMatch = await bcrypt.compare(contrasena, storedHash);
-
-    if (!passwordMatch) {
-      return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
-
-    // Firmar y devolver el token JWT incluyendo el id, el rol_id y el correo
-    const payload = {
-      id: usuario.id,
-      rol_id: usuario.rol_id,
-      correo: usuario.correo
-    };
-
-    const token = jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+    const result = await db.query(
+      'SELECT id, correo, contrasena, rol_id FROM usuarios WHERE correo = $1',
+      [correo]
     );
+    const usuario = result.rows[0];
+    const passwordMatch = usuario?.contrasena ? await bcrypt.compare(contrasena, usuario.contrasena) : false;
 
+    if (!usuario || !passwordMatch) {
+      return res.status(401).json({ message: 'Credenciales inválidas.' });
+    }
+
+    const token = createToken(usuario);
     return res.status(200).json({
-      message: 'Autenticación exitosa',
+      message: 'Autenticación exitosa.',
       token,
-      user: {
-        id: usuario.id,
-        correo: usuario.correo,
-        rol_id: usuario.rol_id
-      }
+      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id },
     });
-
   } catch (error) {
     console.error('Error en authController.login:', error);
-    return res.status(500).json({ message: 'Error interno del servidor' });
+    return res.status(500).json({ message: 'Error interno del servidor.' });
   }
 };
 
+// Esta ruta está protegida para que solo RR.HH. pueda crear cuentas.
 const registro = async (req, res) => {
-  const { correo, contrasena, rol_id } = req.body;
+  const correo = normalizeEmail(req.body?.correo);
+  const contrasena = req.body?.contrasena;
+  const rolId = Number(req.body?.rol_id ?? 2);
 
-  if (!correo || !contrasena) {
-    return res.status(400).json({ message: 'Se requiere correo y contrasena' });
+  if (!EMAIL_PATTERN.test(correo) || typeof contrasena !== 'string' || contrasena.length < 12) {
+    return res.status(400).json({ message: 'El correo debe ser válido y la contraseña debe tener al menos 12 caracteres.' });
+  }
+  if (!ALLOWED_ROLES.has(rolId)) {
+    return res.status(400).json({ message: 'El rol solicitado no es válido.' });
   }
 
-  const finalRolId = rol_id !== undefined ? rol_id : 1;
-
   try {
-    // Encriptar la contraseña usando bcrypt con 10 saltos
-    const hash = await bcrypt.hash(contrasena, 10);
-
-    // Hacer un INSERT en la tabla usuarios de PostgreSQL devolviendo el usuario creado
+    const hash = await bcrypt.hash(contrasena, 12);
     const result = await db.query(
-      'INSERT INTO usuarios (correo, contrasena, rol_id) VALUES ($1, $2, $3) RETURNING id, correo, rol_id',
-      [correo, hash, finalRolId]
+      `INSERT INTO usuarios (correo, contrasena, rol_id)
+       VALUES ($1, $2, $3)
+       RETURNING id, correo, rol_id`,
+      [correo, hash, rolId]
     );
 
-    const usuarioCreado = result.rows[0];
-
-    return res.status(201).json({
-      message: 'Usuario registrado exitosamente',
-      user: usuarioCreado
-    });
-
+    return res.status(201).json({ message: 'Usuario registrado exitosamente.', user: result.rows[0] });
   } catch (error) {
-    console.log(error); // Imprimir error en consola para depuración rápida
-    return res.status(500).json({ message: 'Error interno del servidor al registrar usuario' });
+    if (error.code === '23505') {
+      return res.status(409).json({ message: 'El correo ya se encuentra registrado.' });
+    }
+    console.error('Error en authController.registro:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al registrar el usuario.' });
   }
 };
 
 const listarUsuarios = async (req, res) => {
   try {
-    const result = await db.query('SELECT id, correo FROM usuarios ORDER BY id ASC');
-    return res.status(200).json({
-      message: 'Usuarios obtenidos exitosamente',
-      usuarios: result.rows
-    });
+    const result = await db.query(
+      `SELECT u.id, u.correo, u.rol_id, r.nombre AS rol
+       FROM usuarios u
+       JOIN roles r ON r.id = u.rol_id
+       ORDER BY u.id ASC`
+    );
+    return res.status(200).json({ message: 'Usuarios obtenidos exitosamente.', usuarios: result.rows });
   } catch (error) {
     console.error('Error en authController.listarUsuarios:', error);
-    return res.status(500).json({ message: 'Error interno del servidor al listar usuarios' });
+    return res.status(500).json({ message: 'Error interno del servidor al listar usuarios.' });
   }
 };
-
-// Inicializamos la herramienta de Google con tu Client ID del .env
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID?.trim());
 
 const loginConGoogle = async (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID?.trim();
+  const tokenGoogle = req.body?.tokenGoogle;
+
+  if (!clientId) {
+    return res.status(503).json({ message: 'El inicio de sesión con Google no está configurado.' });
+  }
+  if (typeof tokenGoogle !== 'string' || tokenGoogle.length < 20) {
+    return res.status(400).json({ message: 'Se requiere un token válido de Google.' });
+  }
+
   try {
-    // 1. Recibimos el certificado que manda React
-    const { tokenGoogle } = req.body;
-
-    if (!tokenGoogle) {
-      return res.status(400).json({ error: "Se requiere el token de Google" });
-    }
-
-    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID?.trim();
-
-    // 2. Le pedimos a Google que verifique si el certificado es real
-    const ticket = await client.verifyIdToken({
-      idToken: tokenGoogle,
-      audience: clientId,
-    });
-
-    // 3. Si es real, Google nos devuelve la información del usuario// 3. Extraemos los datos de Google
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({ idToken: tokenGoogle, audience: clientId });
     const payload = ticket.getPayload();
-    const correo = payload.email;
-    const googleId = payload.sub;
+    const correo = normalizeEmail(payload?.email);
+    const allowedDomain = (process.env.GOOGLE_ALLOWED_DOMAIN || 'gla.edu.co').toLowerCase();
 
-    // 4. Primer filtro: Solo correos de la institución
-    if (!correo.endsWith('@gla.edu.co')) {
-      return res.status(403).json({ error: "Acceso denegado. Usa tu correo institucional." });
+    if (!payload?.email_verified || !correo.endsWith(`@${allowedDomain}`)) {
+      return res.status(403).json({ message: 'Acceso denegado. Usa un correo institucional verificado.' });
     }
 
-    // 5. Segundo filtro (LA LISTA BLANCA): Buscamos si RRHH ya lo registró
-    let result = await pool.query('SELECT * FROM usuarios WHERE correo = $1', [correo]);
-    
-    // Si no está en la base de datos (es un estudiante o alguien no autorizado)
-    if (result.rows.length === 0) {
-      return res.status(403).json({ 
-        error: "Acceso denegado. Tu correo es válido, pero no estás registrado en el portal de Recursos Humanos." 
-      });
-    }
-
-    // Si pasó los filtros, cargamos al usuario
-    let usuario = result.rows[0];
-
-    // 6. Vinculamos su cuenta de Google si es su primera vez entrando
-    if (!usuario.google_id) {
-      await pool.query('UPDATE usuarios SET google_id = $1 WHERE id = $2', [googleId, usuario.id]);
-      console.log(`Cuenta de Google vinculada para: ${correo}`);
-    }
-
-    // 7. Creamos tu JWT (esto ya lo tienes)
-    const tokenInterno = jwt.sign(
-      { id: usuario.id, rol_id: usuario.rol_id, correo: usuario.correo },
-      process.env.JWT_SECRET,
-      { expiresIn: '8h' }
+    const result = await db.query(
+      'SELECT id, correo, rol_id, google_id FROM usuarios WHERE correo = $1',
+      [correo]
     );
-    
-    // 8. Se lo enviamos a React INCLUYENDO los datos del usuario
-    res.json({ 
-      mensaje: "Login exitoso", 
-      token: tokenInterno,
-      usuario: {
-        id: usuario.id,
-        correo: usuario.correo,
-        rol_id: usuario.rol_id
-      }
+    const usuario = result.rows[0];
+
+    if (!usuario) {
+      return res.status(403).json({ message: 'Tu correo es válido, pero no está registrado en el portal de Recursos Humanos.' });
+    }
+
+    if (!usuario.google_id) {
+      await db.query('UPDATE usuarios SET google_id = $1 WHERE id = $2', [payload.sub, usuario.id]);
+    }
+
+    return res.status(200).json({
+      message: 'Autenticación exitosa.',
+      token: createToken(usuario),
+      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id },
     });
-
-
   } catch (error) {
-    console.error("Error en la autenticación:", error);
-    res.status(500).json({ error: "Error validando el token de Google" });
+    console.error('Error en la autenticación con Google:', error);
+    return res.status(401).json({ message: 'No fue posible validar el token de Google.' });
   }
 };
 
-module.exports = {
-  login,
-  registro,
-  listarUsuarios,
-  loginConGoogle
-};
+module.exports = { login, registro, listarUsuarios, loginConGoogle };

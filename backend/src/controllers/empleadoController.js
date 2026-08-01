@@ -8,12 +8,16 @@ const obtenerPerfil = async (req, res) => {
   const targetEmployeeId = req.params.id;
 
   try {
+    if (targetEmployeeId && !/^\d+$/.test(String(targetEmployeeId))) {
+      return res.status(400).json({ message: 'El identificador del empleado no es válido.' });
+    }
+
     let result;
     if (targetEmployeeId) {
       result = await db.query(
-        `SELECT 
-          e.*, 
-          u.correo, 
+        `SELECT
+          e.*,
+          u.correo,
           u.rol_id,
           c.cargo,
           c.tipo_contrato,
@@ -21,17 +25,17 @@ const obtenerPerfil = async (req, res) => {
           c.fecha_inicio AS contrato_fecha_inicio,
           c.fecha_fin AS contrato_fecha_fin,
           c.estado AS contrato_estado
-         FROM empleados e 
-         JOIN usuarios u ON e.usuario_id = u.id 
+         FROM empleados e
+         JOIN usuarios u ON e.usuario_id = u.id
          LEFT JOIN contratos c ON e.id = c.empleado_id AND c.estado = 'Activo'
-         WHERE e.id = $1`, 
+         WHERE e.id = $1`,
         [targetEmployeeId]
       );
     } else {
       result = await db.query(
-        `SELECT 
-          e.*, 
-          u.correo, 
+        `SELECT
+          e.*,
+          u.correo,
           u.rol_id,
           c.cargo,
           c.tipo_contrato,
@@ -39,39 +43,32 @@ const obtenerPerfil = async (req, res) => {
           c.fecha_inicio AS contrato_fecha_inicio,
           c.fecha_fin AS contrato_fecha_fin,
           c.estado AS contrato_estado
-         FROM empleados e 
-         JOIN usuarios u ON e.usuario_id = u.id 
+         FROM empleados e
+         JOIN usuarios u ON e.usuario_id = u.id
          LEFT JOIN contratos c ON e.id = c.empleado_id AND c.estado = 'Activo'
-         WHERE e.usuario_id = $1`, 
+         WHERE e.usuario_id = $1`,
         [requesterUserId]
       );
     }
 
     if (result.rows.length === 0) {
       if (!targetEmployeeId) {
-        // Obtenemos información del usuario de la tabla usuarios
+        // Si el usuario no tiene ficha, creamos una básica para que pueda acceder al sistema
         const userRes = await db.query('SELECT correo FROM usuarios WHERE id = $1', [requesterUserId]);
         if (userRes.rows.length > 0) {
           const correoUsuario = userRes.rows[0].correo;
           const nombresTemp = correoUsuario.split('@')[0];
-          
-          // Insertamos un registro de empleado básico vacío
+
           await db.query(
             `INSERT INTO empleados (usuario_id, nombres, apellidos, documento_identidad, fecha_ingreso)
              VALUES ($1, $2, $3, $4, CURRENT_DATE)`,
-            [
-              requesterUserId,
-              nombresTemp,
-              'Colaborador',
-              'REG-' + requesterUserId
-            ]
+            [requesterUserId, nombresTemp, 'Colaborador', 'REG-' + requesterUserId]
           );
 
-          // Volvemos a consultar
           result = await db.query(
-            `SELECT 
-              e.*, 
-              u.correo, 
+            `SELECT
+              e.*,
+              u.correo,
               u.rol_id,
               c.cargo,
               c.tipo_contrato,
@@ -79,15 +76,15 @@ const obtenerPerfil = async (req, res) => {
               c.fecha_inicio AS contrato_fecha_inicio,
               c.fecha_fin AS contrato_fecha_fin,
               c.estado AS contrato_estado
-             FROM empleados e 
-             JOIN usuarios u ON e.usuario_id = u.id 
+             FROM empleados e
+             JOIN usuarios u ON e.usuario_id = u.id
              LEFT JOIN contratos c ON e.id = c.empleado_id AND c.estado = 'Activo'
-             WHERE e.usuario_id = $1`, 
+             WHERE e.usuario_id = $1`,
             [requesterUserId]
           );
         }
       }
-      
+
       if (result.rows.length === 0) {
         return res.status(404).json({ message: 'Perfil de empleado no encontrado' });
       }
@@ -95,27 +92,28 @@ const obtenerPerfil = async (req, res) => {
 
     let perfil = result.rows[0];
 
-    // Lógica de seguridad / censura:
-    // Si el solicitante es Empleado (rol_id === 2) y está consultando el perfil de otra persona
-    if (requesterRolId === 2 && perfil.usuario_id !== requesterUserId) {
-      perfil = {
-        ...perfil,
-        documento_identidad: '*********',
-        telefono: '*********',
-        tipo_contrato: '*********',
-        salario: null,
-        contrato_fecha_inicio: null,
-        contrato_fecha_fin: null,
-        contrato_estado: null,
-        fecha_nacimiento: null,
-        tipo_genero: '*********',
-        correo_personal: '*********',
-        contacto_emergencia: '*********',
-        parentesco: '*********',
-        telefono_emergencia: '*********',
-        fecha_terminacion: null
-      };
+    // Ocultar y enmascarar datos sensibles si el consultante no es administrador ni el propio dueño del perfil.
+    // Los datos de contacto de emergencia permanecen visibles por razones de seguridad/emergencia laboral.
+    if (requesterRolId !== 1 && Number(perfil.usuario_id) !== Number(requesterUserId)) {
+      perfil.salario = '••••••••';
+      perfil.documento_identidad = '••••••••';
+      perfil.telefono = '••••••••';
+      perfil.correo_personal = '••••••••';
+      perfil.fecha_nacimiento = '••••••••';
     }
+
+    // Consultar el número de descargas de certificado en el mes actual
+    const descargasRes = await db.query(
+      `SELECT COUNT(*) AS total
+       FROM descargas_certificados
+       WHERE empleado_id = $1
+         AND EXTRACT(MONTH FROM fecha_descarga) = EXTRACT(MONTH FROM CURRENT_DATE)
+         AND EXTRACT(YEAR FROM fecha_descarga) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+      [perfil.id]
+    );
+    const descargasMesActual = parseInt(descargasRes.rows[0].total || '0', 10);
+    perfil.descargas_mes_actual = descargasMesActual;
+    perfil.max_descargas_mes = 2;
 
     return res.status(200).json({
       message: 'Perfil obtenido exitosamente',
@@ -129,14 +127,14 @@ const obtenerPerfil = async (req, res) => {
 };
 
 const crearEmpleado = async (req, res) => {
-  const { 
-    correo, 
-    contrasena, 
-    rol_id, 
-    documento_identidad, 
-    nombres, 
-    apellidos, 
-    telefono, 
+  const {
+    correo,
+    contrasena,
+    rol_id,
+    documento_identidad,
+    nombres,
+    apellidos,
+    telefono,
     fecha_ingreso,
     habilidades,
     fecha_info_personal,
@@ -150,18 +148,22 @@ const crearEmpleado = async (req, res) => {
     correo_personal,
     contacto_emergencia,
     parentesco,
-    telefono_emergencia
+    telefono_emergencia,
+    direccion
   } = req.body;
 
   if (!correo || !contrasena || !documento_identidad || !nombres || !apellidos) {
-    return res.status(400).json({ 
-      message: 'Se requieren los campos correo, contrasena, documento_identidad, nombres y apellidos' 
+    return res.status(400).json({
+      message: 'Se requieren los campos correo, contrasena, documento_identidad, nombres y apellidos'
     });
   }
 
-  const finalRolId = rol_id !== undefined ? rol_id : 2; // Por defecto 2 para Empleado
+  const finalRolId = Number(rol_id ?? 2);
+  if (![1, 2].includes(finalRolId)) {
+    return res.status(400).json({ message: 'El rol del colaborador no es válido.' });
+  }
   const fechaIngresoFinal = fecha_ingreso || new Date();
-  
+
   const pool = db.pool;
   const client = await pool.connect();
 
@@ -184,9 +186,9 @@ const crearEmpleado = async (req, res) => {
       INSERT INTO empleados (
         usuario_id, documento_identidad, nombres, apellidos, telefono, fecha_ingreso,
         habilidades, fecha_info_personal, fecha_soportes, fecha_seguridad, superior_inmediato, departamento,
-        fecha_terminacion, tipo_genero, fecha_nacimiento, correo_personal, contacto_emergencia, parentesco, telefono_emergencia
+        fecha_terminacion, tipo_genero, fecha_nacimiento, correo_personal, contacto_emergencia, parentesco, telefono_emergencia, direccion
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *
     `;
     const employeeResult = await client.query(employeeInsertQuery, [
@@ -208,7 +210,8 @@ const crearEmpleado = async (req, res) => {
       correo_personal || null,
       contacto_emergencia || null,
       parentesco || null,
-      telefono_emergencia || null
+      telefono_emergencia || null,
+      direccion || null
     ]);
 
     const nuevoEmpleado = employeeResult.rows[0];
@@ -225,8 +228,8 @@ const crearEmpleado = async (req, res) => {
     console.error('Error en transacción de crearEmpleado:', error);
 
     if (error.code === '23505') {
-      return res.status(400).json({ 
-        message: 'El correo electrónico o documento de identidad ya se encuentra registrado' 
+      return res.status(400).json({
+        message: 'El correo electrónico o documento de identidad ya se encuentra registrado'
       });
     }
 
@@ -240,10 +243,15 @@ const listarEmpleados = async (req, res) => {
   try {
     const result = await db.query(`
       SELECT e.*, u.correo,
-             (SELECT cargo FROM contratos c WHERE c.empleado_id = e.id AND c.estado = 'Activo' ORDER BY c.id DESC LIMIT 1) AS cargo,
-             (SELECT COUNT(*) FROM contratos c WHERE c.empleado_id = e.id AND c.estado = 'Activo') > 0 AS tiene_contrato
-      FROM empleados e 
-      LEFT JOIN usuarios u ON e.usuario_id = u.id 
+             c.cargo,
+             (c.id IS NOT NULL) AS tiene_contrato
+      FROM empleados e
+      LEFT JOIN usuarios u ON e.usuario_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT id, cargo FROM contratos
+        WHERE empleado_id = e.id AND estado = 'Activo'
+        ORDER BY id DESC LIMIT 1
+      ) c ON TRUE
       ORDER BY e.id ASC
     `);
     return res.status(200).json({
@@ -258,12 +266,12 @@ const listarEmpleados = async (req, res) => {
 
 const actualizarEmpleado = async (req, res) => {
   const { id } = req.params;
-  const { 
+  const {
     correo,
-    documento_identidad, 
-    nombres, 
-    apellidos, 
-    telefono, 
+    documento_identidad,
+    nombres,
+    apellidos,
+    telefono,
     fecha_ingreso,
     habilidades,
     fecha_info_personal,
@@ -281,7 +289,8 @@ const actualizarEmpleado = async (req, res) => {
     direccion
   } = req.body;
 
-  if (!documento_identidad || !nombres || !apellidos) {
+  const esAdmin = req.user.rol_id === 1;
+  if (esAdmin && (!documento_identidad || !nombres || !apellidos)) {
     return res.status(400).json({ message: 'Se requieren documento_identidad, nombres y apellidos' });
   }
 
@@ -292,15 +301,62 @@ const actualizarEmpleado = async (req, res) => {
     await client.query('BEGIN');
 
     // 1. Obtener el usuario_id asociado a la ficha de empleado
-    const empRes = await client.query('SELECT usuario_id FROM empleados WHERE id = $1', [id]);
+    const empRes = await client.query('SELECT * FROM empleados WHERE id = $1', [id]);
     if (empRes.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Empleado no encontrado' });
     }
-    const usuarioId = empRes.rows[0].usuario_id;
+    const empleadoActual = empRes.rows[0];
+    const usuarioId = empleadoActual.usuario_id;
+
+    // Un colaborador puede actualizar datos de contacto, pero no su identificación,
+    // fechas administrativas, dependencia ni la cuenta institucional.
+    const datos = esAdmin
+      ? {
+          documento_identidad,
+          nombres,
+          apellidos,
+          telefono,
+          fecha_ingreso,
+          habilidades,
+          fecha_info_personal,
+          fecha_soportes,
+          fecha_seguridad,
+          superior_inmediato,
+          departamento,
+          fecha_terminacion,
+          tipo_genero,
+          fecha_nacimiento,
+          correo_personal,
+          contacto_emergencia,
+          parentesco,
+          telefono_emergencia,
+          direccion,
+        }
+      : {
+          documento_identidad: empleadoActual.documento_identidad,
+          nombres: empleadoActual.nombres,
+          apellidos: empleadoActual.apellidos,
+          telefono: telefono ?? empleadoActual.telefono,
+          fecha_ingreso: empleadoActual.fecha_ingreso,
+          habilidades: habilidades ?? empleadoActual.habilidades,
+          fecha_info_personal: empleadoActual.fecha_info_personal,
+          fecha_soportes: empleadoActual.fecha_soportes,
+          fecha_seguridad: empleadoActual.fecha_seguridad,
+          superior_inmediato: empleadoActual.superior_inmediato,
+          departamento: empleadoActual.departamento,
+          fecha_terminacion: empleadoActual.fecha_terminacion,
+          tipo_genero: tipo_genero ?? empleadoActual.tipo_genero,
+          fecha_nacimiento: fecha_nacimiento ?? empleadoActual.fecha_nacimiento,
+          correo_personal: correo_personal ?? empleadoActual.correo_personal,
+          contacto_emergencia: contacto_emergencia ?? empleadoActual.contacto_emergencia,
+          parentesco: parentesco ?? empleadoActual.parentesco,
+          telefono_emergencia: telefono_emergencia ?? empleadoActual.telefono_emergencia,
+          direccion: direccion ?? empleadoActual.direccion,
+        };
 
     // 2. Actualizar el correo en la tabla usuarios si se proporciona
-    if (correo) {
+    if (esAdmin && correo) {
       await client.query(
         'UPDATE usuarios SET correo = $1 WHERE id = $2',
         [correo, usuarioId]
@@ -308,13 +364,13 @@ const actualizarEmpleado = async (req, res) => {
     }
 
     // 3. Actualizar la ficha de empleado
-    const finalHabilidades = Array.isArray(habilidades) ? habilidades : null;
+    const finalHabilidades = Array.isArray(datos.habilidades) ? datos.habilidades : null;
     const queryText = `
       UPDATE empleados
-      SET documento_identidad = $1, 
-          nombres = $2, 
-          apellidos = $3, 
-          telefono = $4, 
+      SET documento_identidad = $1,
+          nombres = $2,
+          apellidos = $3,
+          telefono = $4,
           fecha_ingreso = $5,
           habilidades = $6,
           fecha_info_personal = $7,
@@ -334,25 +390,25 @@ const actualizarEmpleado = async (req, res) => {
       RETURNING *
     `;
     const result = await client.query(queryText, [
-      documento_identidad,
-      nombres,
-      apellidos,
-      telefono || null,
-      fecha_ingreso || new Date(),
+      datos.documento_identidad,
+      datos.nombres,
+      datos.apellidos,
+      datos.telefono || null,
+      datos.fecha_ingreso || new Date(),
       finalHabilidades,
-      fecha_info_personal || null,
-      fecha_soportes || null,
-      fecha_seguridad || null,
-      superior_inmediato || null,
-      departamento || null,
-      fecha_terminacion || null,
-      tipo_genero || null,
-      fecha_nacimiento || null,
-      correo_personal || null,
-      contacto_emergencia || null,
-      parentesco || null,
-      telefono_emergencia || null,
-      direccion || null,
+      datos.fecha_info_personal || null,
+      datos.fecha_soportes || null,
+      datos.fecha_seguridad || null,
+      datos.superior_inmediato || null,
+      datos.departamento || null,
+      datos.fecha_terminacion || null,
+      datos.tipo_genero || null,
+      datos.fecha_nacimiento || null,
+      datos.correo_personal || null,
+      datos.contacto_emergencia || null,
+      datos.parentesco || null,
+      datos.telefono_emergencia || null,
+      datos.direccion || null,
       id
     ]);
 
@@ -360,7 +416,7 @@ const actualizarEmpleado = async (req, res) => {
 
     const empleadoModificado = {
       ...result.rows[0],
-      correo
+      correo: esAdmin ? correo : undefined
     };
 
     return res.status(200).json({
@@ -415,26 +471,71 @@ const eliminarEmpleado = async (req, res) => {
   }
 };
 
+
 const generarCertificado = async (req, res) => {
   const usuarioId = req.user.id;
+  const requesterRolId = req.user.rol_id;
+  const { empleado_id } = req.query;
 
   try {
-    // 1. Obtener la información del empleado y su contrato activo
-    const queryText = `
-      SELECT 
-        e.nombres, 
-        e.apellidos, 
-        e.documento_identidad, 
-        e.telefono,
-        e.fecha_ingreso,
-        c.cargo, 
-        c.tipo_contrato, 
-        c.salario
-      FROM empleados e
-      LEFT JOIN contratos c ON e.id = c.empleado_id AND c.estado = 'Activo'
-      WHERE e.usuario_id = $1
-    `;
-    const result = await db.query(queryText, [usuarioId]);
+    let queryText = '';
+    let values = [];
+
+    if (empleado_id) {
+      if (requesterRolId !== 1) {
+        const checkEmp = await db.query('SELECT usuario_id FROM empleados WHERE id = $1', [empleado_id]);
+        if (checkEmp.rows.length === 0 || checkEmp.rows[0].usuario_id !== usuarioId) {
+          return res.status(403).json({ message: 'No tienes autorización para descargar este certificado' });
+        }
+      }
+      queryText = `
+        SELECT
+          e.id AS empleado_id,
+          e.nombres,
+          e.apellidos,
+          e.documento_identidad,
+          e.telefono,
+          e.fecha_ingreso,
+          COALESCE(c.cargo, 'Colaborador Institucional') AS cargo,
+          COALESCE(c.tipo_contrato, 'Término Indefinido') AS tipo_contrato,
+          COALESCE(c.salario, 0) AS salario
+        FROM empleados e
+        LEFT JOIN LATERAL (
+          SELECT cargo, tipo_contrato, salario
+          FROM contratos
+          WHERE empleado_id = e.id AND estado = 'Activo'
+          ORDER BY id DESC
+          LIMIT 1
+        ) c ON TRUE
+        WHERE e.id = $1
+      `;
+      values = [empleado_id];
+    } else {
+      queryText = `
+        SELECT
+          e.id AS empleado_id,
+          e.nombres,
+          e.apellidos,
+          e.documento_identidad,
+          e.telefono,
+          e.fecha_ingreso,
+          COALESCE(c.cargo, 'Colaborador Institucional') AS cargo,
+          COALESCE(c.tipo_contrato, 'Término Indefinido') AS tipo_contrato,
+          COALESCE(c.salario, 0) AS salario
+        FROM empleados e
+        LEFT JOIN LATERAL (
+          SELECT cargo, tipo_contrato, salario
+          FROM contratos
+          WHERE empleado_id = e.id AND estado = 'Activo'
+          ORDER BY id DESC
+          LIMIT 1
+        ) c ON TRUE
+        WHERE e.usuario_id = $1
+      `;
+      values = [usuarioId];
+    }
+
+    const result = await db.query(queryText, values);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Perfil de empleado no encontrado' });
@@ -442,24 +543,48 @@ const generarCertificado = async (req, res) => {
 
     const emp = result.rows[0];
 
-    if (!emp.cargo) {
-      return res.status(404).json({ 
-        message: 'No se encontró un contrato activo asignado para generar el certificado laboral.' 
+    // Verificar conteo de descargas en el mes actual
+    const descargasRes = await db.query(
+      `SELECT COUNT(*) AS total
+       FROM descargas_certificados
+       WHERE empleado_id = $1
+         AND EXTRACT(MONTH FROM fecha_descarga) = EXTRACT(MONTH FROM CURRENT_DATE)
+         AND EXTRACT(YEAR FROM fecha_descarga) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+      [emp.empleado_id]
+    );
+
+    const descargasMes = parseInt(descargasRes.rows[0].total || '0', 10);
+
+    // Límite de 2 descargas por mes para colaboradores (rol_id !== 1)
+    if (requesterRolId !== 1 && descargasMes >= 2) {
+      return res.status(429).json({
+        message: 'Has alcanzado el límite máximo de 2 descargas de certificación laboral para este mes. Podrás volver a descargar el próximo mes.'
       });
     }
 
-    // 2. Inicializar PDF
+    // Inicializar PDF
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
     // Configurar cabeceras de respuesta
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=certificado_laboral.pdf');
 
+    // Registrar descarga SOLO cuando el PDF se entregue exitosamente
+    doc.on('end', async () => {
+      try {
+        await db.query(
+          'INSERT INTO descargas_certificados (empleado_id) VALUES ($1)',
+          [emp.empleado_id]
+        );
+      } catch (dbErr) {
+        console.error('Error al registrar descarga de certificado:', dbErr);
+      }
+    });
+
     // Transmitir PDF a la respuesta
     doc.pipe(res);
 
-    // 3. Diseñar el PDF
-    // Membrete / Encabezado
+    // Diseñar el PDF
     doc
       .fillColor('#065f46') // Emerald 800
       .fontSize(22)
@@ -499,15 +624,15 @@ const generarCertificado = async (req, res) => {
     const fechaActualStr = new Date().toLocaleDateString('es-CO', opcionesFecha);
 
     // Cuerpo del certificado
-    const salarioFormateado = new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(emp.salario);
+    const salarioFormateado = emp.salario && parseFloat(emp.salario) > 0
+      ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(emp.salario)
+      : 'Según asignación escalar contractual';
 
-    const fechaIngresoFormateada = new Date(emp.fecha_ingreso).toLocaleDateString('es-CO', opcionesFecha);
+    const fechaIngresoFormateada = emp.fecha_ingreso
+      ? new Date(emp.fecha_ingreso).toLocaleDateString('es-CO', opcionesFecha)
+      : 'la fecha de vinculación registrada';
 
-    const cuerpoTexto = `El Gimnasio Los Arrayanes Bilingüe certifica que ${emp.nombres} ${emp.apellidos}, identificado(a) con documento ${emp.documento_identidad}, labora en nuestra institución con un contrato ${emp.tipo_contrato} ocupando el cargo de ${emp.cargo}.\n\n` +
+    const cuerpoTexto = `El Gimnasio Los Arrayanes Bilingüe certifica que ${emp.nombres} ${emp.apellidos}, identificado(a) con documento ${emp.documento_identidad}, labora en nuestra institución con un contrato de tipo ${emp.tipo_contrato} desempeñándose en el cargo de ${emp.cargo}.\n\n` +
       `Su fecha de ingreso a la institución fue el ${fechaIngresoFormateada} y actualmente devenga un salario básico mensual de ${salarioFormateado}.\n\n` +
       `Se expide la presente certificación a solicitud del interesado, en la ciudad de Bogotá D.C., el día ${fechaActualStr}.`;
 
@@ -542,7 +667,9 @@ const generarCertificado = async (req, res) => {
 
   } catch (error) {
     console.error('Error en empleadoController.generarCertificado:', error);
-    return res.status(500).json({ message: 'Error interno del servidor al generar el certificado en PDF' });
+    if (!res.headersSent) {
+      return res.status(500).json({ message: 'Error interno del servidor al generar el certificado en PDF' });
+    }
   }
 };
 
@@ -550,8 +677,8 @@ const obtenerDirectorio = async (req, res) => {
   try {
     const queryText = `
       SELECT id, nombres, apellidos, foto_perfil,
-             (SELECT cargo FROM contratos WHERE empleado_id = empleados.id AND estado = 'Activo' AND cargo IS NOT NULL ORDER BY id DESC LIMIT 1) AS cargo, 
-             departamento 
+             (SELECT cargo FROM contratos WHERE empleado_id = empleados.id AND estado = 'Activo' AND cargo IS NOT NULL ORDER BY id DESC LIMIT 1) AS cargo,
+             departamento
       FROM empleados
       ORDER BY id ASC
     `;
@@ -567,7 +694,9 @@ const obtenerDirectorio = async (req, res) => {
 };
 
 const subirFotoPerfil = async (req, res) => {
-  const usuarioId = req.user.id;
+  const requesterUserId = req.user.id;
+  const requesterRolId = req.user.rol_id;
+  const targetEmpleadoId = req.body?.empleado_id || req.query?.empleado_id;
 
   if (!req.file) {
     return res.status(400).json({ message: 'No se ha subido ningún archivo o el formato no es válido.' });
@@ -575,14 +704,28 @@ const subirFotoPerfil = async (req, res) => {
 
   try {
     const fotoRuta = `/uploads/perfiles/${req.file.filename}`;
+    let queryText;
+    let values;
 
-    const queryText = `
-      UPDATE empleados 
-      SET foto_perfil = $1 
-      WHERE usuario_id = $2 
-      RETURNING id, nombres, apellidos, foto_perfil
-    `;
-    const result = await db.query(queryText, [fotoRuta, usuarioId]);
+    if (requesterRolId === 1 && targetEmpleadoId) {
+      queryText = `
+        UPDATE empleados
+        SET foto_perfil = $1
+        WHERE id = $2
+        RETURNING id, nombres, apellidos, foto_perfil
+      `;
+      values = [fotoRuta, targetEmpleadoId];
+    } else {
+      queryText = `
+        UPDATE empleados
+        SET foto_perfil = $1
+        WHERE usuario_id = $2
+        RETURNING id, nombres, apellidos, foto_perfil
+      `;
+      values = [fotoRuta, requesterUserId];
+    }
+
+    const result = await db.query(queryText, values);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Empleado no encontrado' });
@@ -603,9 +746,12 @@ const crearEmpleadosMasivo = async (req, res) => {
   const { empleados } = req.body;
 
   if (!empleados || !Array.isArray(empleados) || empleados.length === 0) {
-    return res.status(400).json({ 
-      message: 'Se requiere una lista de colaboradores en el campo "empleados"' 
+    return res.status(400).json({
+      message: 'Se requiere una lista de colaboradores en el campo "empleados"'
     });
+  }
+  if (empleados.length > 500) {
+    return res.status(400).json({ message: 'La carga masiva no puede superar 500 colaboradores por operación.' });
   }
 
   const pool = db.pool;
@@ -617,11 +763,11 @@ const crearEmpleadosMasivo = async (req, res) => {
 
     for (let i = 0; i < empleados.length; i++) {
       const emp = empleados[i];
-      const { 
-        correo, 
-        contrasena, 
-        documento_identidad, 
-        nombres, 
+      const {
+        correo,
+        contrasena,
+        documento_identidad,
+        nombres,
         apellidos,
         telefono,
         fecha_ingreso,
@@ -633,10 +779,10 @@ const crearEmpleadosMasivo = async (req, res) => {
 
       // Validaciones básicas
       if (!correo || !documento_identidad || !nombres || !apellidos) {
-        resultados.errores.push({ 
-          fila: i + 1, 
-          correo: correo || 'N/A', 
-          error: 'Faltan campos requeridos (correo, documento_identidad, nombres, apellidos)' 
+        resultados.errores.push({
+          fila: i + 1,
+          correo: correo || 'N/A',
+          error: 'Faltan campos requeridos (correo, documento_identidad, nombres, apellidos)'
         });
         continue;
       }
@@ -706,7 +852,7 @@ const crearEmpleadosMasivo = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error general en crearEmpleadosMasivo:', error);
-    return res.status(500).json({ message: 'Error de servidor durante la carga masiva', error: error.message });
+    return res.status(500).json({ message: 'Error de servidor durante la carga masiva.' });
   } finally {
     client.release();
   }
@@ -723,4 +869,3 @@ module.exports = {
   subirFotoPerfil,
   crearEmpleadosMasivo
 };
-

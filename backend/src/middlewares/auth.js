@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
-require('dotenv').config();
 
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -9,30 +8,33 @@ const verifyToken = (req, res, next) => {
     return res.status(401).json({ message: 'Acceso denegado: Token no proporcionado' });
   }
 
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+  const parts = authHeader.trim().split(/\s+/);
+  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
     return res.status(401).json({ message: 'Acceso denegado: Formato de token inválido. Debe ser Bearer <token>' });
   }
 
   const token = parts[1];
 
   try {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+      return res.status(500).json({ message: 'La autenticación no está configurada en el servidor.' });
+    }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // req.user tendrá { id, rol_id }
+    req.user = { ...decoded, id: Number(decoded.id), rol_id: Number(decoded.rol_id) };
     next();
   } catch (error) {
     console.error('JWT verification error:', error.message);
-    return res.status(403).json({ message: 'Acceso denegado: Token inválido o expirado' });
+    return res.status(401).json({ message: 'Token inválido o expirado. Por favor inicie sesión nuevamente.' });
   }
 };
 
 const authorize = (...allowedRoles) => {
   return (req, res, next) => {
-    if (!req.user || !req.user.rol_id) {
+    if (!req.user || !Number.isInteger(req.user.rol_id)) {
       return res.status(403).json({ message: 'Acceso denegado: Rol no identificado' });
     }
 
-    if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.rol_id)) {
+    if (allowedRoles.length > 0 && !allowedRoles.map(Number).includes(req.user.rol_id)) {
       return res.status(403).json({ message: 'Acceso denegado: Permisos insuficientes' });
     }
 

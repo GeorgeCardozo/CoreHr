@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { obtenerEmpleados, actualizarEmpleado, eliminarEmpleado, crearEmpleadosMasivo } from '../services/api';
+import { obtenerEmpleados, actualizarEmpleado, eliminarEmpleado, crearEmpleadosMasivo, getAssetUrl, subirFotoPerfil } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
 
@@ -165,6 +165,8 @@ const ListaEmpleados = () => {
   });
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [editPhotoFile, setEditPhotoFile] = useState(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState(null);
 
   const fetchEmpleados = async () => {
     try {
@@ -229,7 +231,24 @@ const ListaEmpleados = () => {
       telefono_emergencia: emp.telefono_emergencia || ''
     });
     setEditError('');
+    setEditPhotoFile(null);
+    setEditPhotoPreview(emp.foto_perfil ? getAssetUrl(emp.foto_perfil) : null);
     setIsEditModalOpen(true);
+  };
+
+  const handleEditPhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Solo se permiten imágenes en formato JPG, PNG o WebP.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('La imagen no debe superar los 2MB.');
+      return;
+    }
+    setEditPhotoFile(file);
+    setEditPhotoPreview(URL.createObjectURL(file));
   };
 
   const handleEditSubmit = async (e) => {
@@ -238,6 +257,19 @@ const ListaEmpleados = () => {
     setEditLoading(true);
 
     try {
+      let nuevaFoto = selectedEmpleado.foto_perfil;
+
+      if (editPhotoFile) {
+        const formData = new FormData();
+        formData.append('foto', editPhotoFile);
+        formData.append('empleado_id', selectedEmpleado.id);
+
+        const photoRes = await subirFotoPerfil(formData);
+        if (photoRes?.foto_perfil) {
+          nuevaFoto = photoRes.foto_perfil;
+        }
+      }
+
       const data = await actualizarEmpleado(selectedEmpleado.id, {
         correo: editFormData.correo || null,
         documento_identidad: editFormData.documento_identidad,
@@ -262,10 +294,13 @@ const ListaEmpleados = () => {
 
       // Actualizar la lista localmente
       setEmpleados((prev) => 
-        prev.map((emp) => emp.id === selectedEmpleado.id ? { ...emp, ...data.empleado } : emp)
+        prev.map((emp) => emp.id === selectedEmpleado.id ? { ...emp, ...data.empleado, foto_perfil: nuevaFoto } : emp)
       );
       setIsEditModalOpen(false);
       setSelectedEmpleado(null);
+      setEditPhotoFile(null);
+      setEditPhotoPreview(null);
+      toast.success('Colaborador actualizado exitosamente.');
     } catch (err) {
       console.error(err);
       setEditError(err.response?.data?.message || 'Error al actualizar los datos del colaborador.');
@@ -495,6 +530,38 @@ const ListaEmpleados = () => {
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-4">
                 
+                {/* Foto de Perfil */}
+                <div className="flex flex-col items-center justify-center space-y-2 pb-2 border-b border-outline-variant/40">
+                  <div className="relative w-20 h-20 rounded-full overflow-hidden ring-4 ring-primary/20 shadow-md group">
+                    <img
+                      src={editPhotoPreview || getAvatar(selectedEmpleado)}
+                      alt="Foto del colaborador"
+                      className="w-full h-full object-cover"
+                    />
+                    <label
+                      htmlFor="edit_foto_input"
+                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity cursor-pointer text-[10px] font-semibold"
+                    >
+                      <span className="material-symbols-outlined text-lg mb-0.5">photo_camera</span>
+                      <span>Cambiar</span>
+                    </label>
+                  </div>
+                  <input
+                    id="edit_foto_input"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleEditPhotoChange}
+                  />
+                  <label
+                    htmlFor="edit_foto_input"
+                    className="text-xs text-primary font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-sm">upload</span>
+                    <span>{editPhotoFile ? editPhotoFile.name : 'Cambiar foto de perfil'}</span>
+                  </label>
+                </div>
+
                 {/* Correo Institucional */}
                 <div>
                   <label className="block text-on-surface-variant text-xs font-semibold mb-1" htmlFor="edit_correo">

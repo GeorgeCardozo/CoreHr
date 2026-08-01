@@ -10,7 +10,8 @@ router.post('/login', login);
 router.post('/google', loginConGoogle);
 
 // Ruta: POST /api/auth/registro
-router.post('/registro', registro);
+// El registro de cuentas es una operación administrativa; nunca se acepta rol desde una ruta pública.
+router.post('/registro', verifyToken, verificarAdmin, registro);
 
 // Ruta: GET /api/auth/usuarios (Protegido para Administradores)
 router.get('/usuarios', verifyToken, verificarAdmin, listarUsuarios);

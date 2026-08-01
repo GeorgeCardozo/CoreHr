@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import api, { actualizarEmpleado } from '../services/api';
+import api, { getAssetUrl } from '../services/api';
 import { toast } from 'react-hot-toast';
-import defaultAvatar from '../assets/default_avatar.png';
+import NotificationBell from '../components/NotificationBell';
+import logoSolo from '../assets/LogoSolo.png';
 
 const PerfilEmpleado = () => {
   const { user, setUser, logout } = useAuth();
@@ -32,6 +33,26 @@ const PerfilEmpleado = () => {
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [editError, setEditError] = useState('');
 
+  // Estados para Modal y Peticiones de Ausentismo / Permiso
+  const [isSolicitudModalOpen, setIsSolicitudModalOpen] = useState(false);
+  const [tipoSolicitud, setTipoSolicitud] = useState('Ausentismo Laboral');
+  const [fechaInicioSolicitud, setFechaInicioSolicitud] = useState('');
+  const [fechaFinSolicitud, setFechaFinSolicitud] = useState('');
+  const [motivoSolicitud, setMotivoSolicitud] = useState('');
+  const [archivoAdjunto, setArchivoAdjunto] = useState(null);
+  const [submittingSolicitud, setSubmittingSolicitud] = useState(false);
+  const [misSolicitudes, setMisSolicitudes] = useState([]);
+
+  // Cargar solicitudes del colaborador
+  const fetchMisSolicitudes = async () => {
+    try {
+      const res = await api.get('/solicitudes');
+      setMisSolicitudes(res.data.solicitudes || []);
+    } catch (err) {
+      console.error('Error al cargar mis solicitudes:', err);
+    }
+  };
+
   // Cargar datos del perfil en tiempo real al entrar a la página
   useEffect(() => {
     const fetchProfile = async () => {
@@ -47,47 +68,118 @@ const PerfilEmpleado = () => {
       }
     };
     fetchProfile();
+    fetchMisSolicitudes();
   }, [id]);
 
+  const handleCrearSolicitud = async (e) => {
+    e.preventDefault();
+    if (!fechaInicioSolicitud || !motivoSolicitud) {
+      toast.error('La fecha y el motivo son obligatorios.');
+      return;
+    }
+
+    setSubmittingSolicitud(true);
+    try {
+      const formData = new FormData();
+      formData.append('tipo_solicitud', tipoSolicitud);
+      formData.append('fecha_inicio', fechaInicioSolicitud);
+      if (fechaFinSolicitud) {
+        formData.append('fecha_fin', fechaFinSolicitud);
+      }
+      formData.append('motivo', motivoSolicitud);
+      if (archivoAdjunto) {
+        formData.append('adjunto', archivoAdjunto);
+      }
+
+      await api.post('/solicitudes', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      toast.success('Solicitud de ausentismo enviada con éxito.');
+      setIsSolicitudModalOpen(false);
+      setTipoSolicitud('Ausentismo Laboral');
+      setFechaInicioSolicitud('');
+      setFechaFinSolicitud('');
+      setMotivoSolicitud('');
+      setArchivoAdjunto(null);
+      fetchMisSolicitudes();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Error al enviar la solicitud.');
+    } finally {
+      setSubmittingSolicitud(false);
+    }
+  };
+
   const handleDescargarCertificado = async () => {
+    if (downloading) return;
+
+    // Verificar límite mensual en frontend antes de hacer la petición
+    if (user?.rol_id !== 1 && profile?.descargas_mes_actual >= 2) {
+      toast.error('Has alcanzado el límite máximo de 2 descargas de certificación laboral para este mes.');
+      return;
+    }
+
     setDownloading(true);
     setError('');
 
     try {
-      // Hacer la petición GET configurando responseType como 'blob'
-      const response = await api.get('/empleados/certificado', {
+      const url = profile?.id ? `/empleados/certificado?empleado_id=${profile.id}` : '/empleados/certificado';
+      const response = await api.get(url, {
         responseType: 'blob'
       });
 
       // Crear URL temporal para el blob del PDF
       const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      
+      const downloadUrl = window.URL.createObjectURL(blob);
+
       // Crear elemento de descarga y forzar el clic
       const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'certificado_laboral.pdf');
+      link.href = downloadUrl;
+      link.setAttribute('download', `Certificado_Laboral_${profile?.nombres || 'Empleado'}.pdf`);
       document.body.appendChild(link);
       link.click();
-      
+
       // Limpiar el DOM y liberar el recurso
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(downloadUrl);
+
+      toast.success('Certificación laboral descargada con éxito.');
+      setProfile(prev => prev ? { ...prev, descargas_mes_actual: (prev.descargas_mes_actual || 0) + 1 } : prev);
     } catch (err) {
       console.error(err);
-      setError('Error al generar el certificado laboral en PDF. Asegúrate de tener un contrato activo.');
+      let errorMsg = 'Error al generar la certificación laboral en PDF.';
+      if (err.response && err.response.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.message) errorMsg = json.message;
+        } catch {
+          // Mantener mensaje por defecto si no es JSON válido
+        }
+      } else if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      }
+      toast.error(errorMsg);
+      setError(errorMsg);
     } finally {
       setDownloading(false);
     }
   };
 
   const getFormatoMoneda = (valor) => {
-    if (valor === null || valor === undefined) return 'No registrado';
+    if (valor === null || valor === undefined || valor === '') return 'No registrado';
+    if (typeof valor === 'string' && valor.includes('•')) return valor;
+    const num = typeof valor === 'number' ? valor : parseFloat(String(valor).replace(/[^0-9.-]+/g, ''));
+    if (isNaN(num)) return valor;
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(valor);
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(num);
   };
 
   const manejarModuloEnDesarrollo = (e) => {
@@ -97,14 +189,14 @@ const PerfilEmpleado = () => {
 
   const getAvatar = (emp) => {
     if (emp?.foto_perfil) {
-      return `http://localhost:3000${emp.foto_perfil}`;
+      return getAssetUrl(emp.foto_perfil);
     }
     const nombres = emp?.nombres || 'C';
     const apellidos = emp?.apellidos || 'Colaborador';
     const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    
+
     const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
+      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
       '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
     ];
     const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
@@ -118,7 +210,7 @@ const PerfilEmpleado = () => {
         </text>
       </svg>
     `.trim().replace(/\s+/g, ' ');
-    
+
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   };
 
@@ -158,6 +250,9 @@ const PerfilEmpleado = () => {
       if (selectedFile) {
         const formData = new FormData();
         formData.append('foto', selectedFile);
+        if (profile?.id) {
+          formData.append('empleado_id', profile.id);
+        }
 
         const uploadRes = await api.put('/empleados/perfil/foto', formData, {
           headers: {
@@ -199,7 +294,7 @@ const PerfilEmpleado = () => {
       };
 
       await actualizarEmpleado(profile.id, payload);
-      
+
       setProfile({
         ...profile,
         nombres: editNombres,
@@ -233,10 +328,10 @@ const PerfilEmpleado = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-background text-on-surface">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500 mx-auto"></div>
-          <p className="text-slate-400 text-sm">Cargando tu perfil laboral...</p>
+          <p className="text-on-surface-variant text-sm">Cargando tu perfil laboral...</p>
         </div>
       </div>
     );
@@ -247,8 +342,14 @@ const PerfilEmpleado = () => {
       {/* TopNavBar Shell */}
       <header className="fixed top-0 w-full z-50 flex justify-between items-center px-8 h-16 bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant/30 transition-colors duration-200">
         <div className="flex items-center gap-8">
-          <span className="font-headline-md text-headline-md font-bold text-primary">CoreRRHH</span>
+          <Link to={esAdmin ? "/dashboard" : "/perfil"} className="font-headline-md text-headline-md font-bold text-primary hover:opacity-90 transition-opacity">CoreRRHH</Link>
           <nav className="hidden md:flex gap-2 items-center">
+            {esAdmin && (
+              <Link className="flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1.5 rounded-lg text-sm font-bold transition-all" to="/dashboard">
+                <span className="material-symbols-outlined text-[18px]">dashboard</span>
+                <span>Panel Admin</span>
+              </Link>
+            )}
             <Link className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" to="/directorio">Directorio</Link>
             <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Beneficios</a>
             <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Capacitación</a>
@@ -256,23 +357,28 @@ const PerfilEmpleado = () => {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <button 
-            className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" 
+          <button
+            className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
             onClick={toggleTheme}
+            aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
             title={theme === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
           >
             {theme === 'light' ? 'dark_mode' : 'light_mode'}
           </button>
-          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>notifications</button>
-          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={() => navigate('/configuracion')}>settings</button>
-          <div 
-            onClick={logout}
-            title="Cerrar Sesión"
+          <NotificationBell />
+          <button
+            className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
+            aria-label="Ir a configuración"
+            onClick={() => navigate('/configuracion')}
+          >settings</button>
+          <div
+            onClick={() => navigate('/perfil')}
+            title="Ver mi perfil"
             className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer hover:opacity-80 transition-opacity"
           >
-            <img 
-              alt="Employee Profile Avatar" 
-              className="w-full h-full object-cover" 
+            <img
+              alt="Employee Profile Avatar"
+              className="w-full h-full object-cover"
               src={getAvatar(user?.profile)}
             />
           </div>
@@ -282,42 +388,51 @@ const PerfilEmpleado = () => {
       {/* SideNavBar Shell */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-16 bottom-0 w-64 p-4 bg-surface-container-low border-r border-outline-variant">
         <div className="mb-8 px-4 py-3 flex items-center gap-3">
-          <img src="/src/assets/LogoSolo.png" alt="Logo" className="h-10 w-auto object-contain" />
+          <img src={logoSolo} alt="Logo" className="h-10 w-auto object-contain" />
           <div className="flex flex-col justify-center">
-            <p className="text-sm font-bold text-slate-800 leading-tight">Gimnasio Los Arrayanes</p>
-            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Portal RRHH</p>
+            <p className="text-sm font-bold text-on-surface leading-tight">Gimnasio Los Arrayanes</p>
+            <p className="text-xs font-semibold text-primary uppercase tracking-wide">Portal RRHH</p>
           </div>
         </div>
         <nav className="flex-1 space-y-1">
-          <a className="flex items-center gap-3 bg-emerald-50 text-emerald-800 font-semibold rounded-xl px-4 py-2 transition-colors" href="#">
+          {esAdmin && (
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl px-4 py-2.5 transition-colors border border-emerald-500/20 mb-3 hover:bg-emerald-500/20"
+            >
+              <span className="material-symbols-outlined">dashboard</span>
+              <span className="font-label-caps text-label-caps">Panel Admin</span>
+            </Link>
+          )}
+          <a className="flex items-center gap-3 bg-primary/10 text-primary font-semibold rounded-xl px-4 py-2 transition-colors" href="#">
             <span className="material-symbols-outlined">person</span>
             <span className="font-label-caps text-label-caps">Resumen</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">description</span>
             <span className="font-label-caps text-label-caps">Documentos</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">work</span>
             <span className="font-label-caps text-label-caps">Experiencia</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">trending_up</span>
             <span className="font-label-caps text-label-caps">Desempeño</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
             <span className="material-symbols-outlined">manage_accounts</span>
             <span className="font-label-caps text-label-caps">Ajustes</span>
           </a>
         </nav>
         <div className="mt-auto pt-4 border-t border-outline-variant space-y-1">
-          <a className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200 rounded-lg" href="#">
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="#">
             <span className="material-symbols-outlined">help</span>
             <span className="font-label-caps text-label-caps">Soporte</span>
           </a>
-          <button 
+          <button
             onClick={logout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200 rounded-lg cursor-pointer text-left focus:outline-none"
+            className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg cursor-pointer text-left focus:outline-none"
           >
             <span className="material-symbols-outlined">logout</span>
             <span className="font-label-caps text-label-caps">Cerrar Sesión</span>
@@ -328,7 +443,7 @@ const PerfilEmpleado = () => {
       {/* Main Content Canvas */}
       <main className="lg:ml-64 pt-20 min-h-screen">
         <div className="px-8 py-6 max-w-7xl mx-auto">
-          
+
           {!esPropioPerfil && (
             <button
               onClick={() => navigate('/directorio')}
@@ -351,14 +466,14 @@ const PerfilEmpleado = () => {
             <div className="h-24 w-full bg-gradient-to-r from-emerald-800 to-teal-500 rounded-t-2xl relative overflow-hidden">
               <div className="absolute inset-0 bg-white/10 [mask-image:linear-gradient(to_bottom,white,transparent)]"></div>
             </div>
-            
+
             {/* Profile Content */}
             <div className="px-8 pb-4 flex flex-col md:flex-row items-end justify-between gap-6 -mt-12 relative z-10 w-full">
               <div className="flex flex-col md:flex-row items-end gap-6">
                 <div className="w-32 h-32 rounded-full ring-4 ring-surface-container-lowest shadow-md overflow-hidden bg-surface-container-lowest">
-                  <img 
-                    alt="Perfil del colaborador" 
-                    className="w-full h-full object-cover" 
+                  <img
+                    alt="Perfil del colaborador"
+                    className="w-full h-full object-cover"
                     src={getAvatar(profile)}
                   />
                 </div>
@@ -366,14 +481,14 @@ const PerfilEmpleado = () => {
                   <h1 className="font-headline-lg text-headline-lg text-on-surface mb-1">
                     {profile?.nombres} {profile?.apellidos}
                   </h1>
-                  <p className="text-sm text-slate-500 font-medium">
+                  <p className="text-sm text-on-surface-variant font-medium">
                     {profile?.cargo || 'Colaborador Institucional'} • {profile?.correo}
                   </p>
                 </div>
               </div>
               {(esPropioPerfil || esAdmin) && (
                 <div className="pb-2 self-center md:self-end">
-                  <button 
+                  <button
                     onClick={handleOpenEdit}
                     className="flex items-center gap-2 px-4 py-2 border border-outline-variant hover:bg-surface-container rounded-xl text-on-surface font-label-caps text-label-caps transition-all cursor-pointer"
                   >
@@ -387,21 +502,21 @@ const PerfilEmpleado = () => {
 
           {/* 2-Column Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            
+
             {/* Left Column (2/3) */}
             <div className="lg:col-span-2 space-y-6">
-              
+
               {/* Información Laboral */}
               <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
                 <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">Apartment</span>
                   <h2>Información Laboral</h2>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Fecha de Contratación</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de Contratación</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.fecha_ingreso ? new Date(profile.fecha_ingreso).toLocaleDateString('es-CO', {
                         year: 'numeric',
                         month: 'long',
@@ -411,8 +526,8 @@ const PerfilEmpleado = () => {
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Fecha de Terminación</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de Terminación</span>
+                    <p className="text-base text-on-surface font-medium">
                       {(profile?.contrato_fecha_fin || profile?.fecha_terminacion) ? (() => {
                         const dateStr = profile.contrato_fecha_fin || profile.fecha_terminacion;
                         const dateObj = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
@@ -424,32 +539,32 @@ const PerfilEmpleado = () => {
                       })() : profile?.tipo_contrato === 'Indefinido' ? 'No aplica (Indefinido)' : 'No registrado'}
                     </p>
                   </div>
-                  
+
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Tipo de Contrato</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Tipo de Contrato</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.tipo_contrato || 'Sin asignar'}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Salario</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Salario</span>
+                    <p className="text-base text-on-surface font-medium">
                       {getFormatoMoneda(profile?.salario)}
                     </p>
                   </div>
-                  
-                  
+
+
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Departamento</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Departamento</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.departamento || 'No asignado'}
                     </p>
                   </div>
-                  
+
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Superior Inmediato</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Superior Inmediato</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.superior_inmediato || 'No registrado'}
                     </p>
                   </div>
@@ -459,84 +574,88 @@ const PerfilEmpleado = () => {
               {/* Información Personal */}
               <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
                 <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
-                  <span className="material-symbols-outlined text-primary text-xl">Inbox_Text_Person</span>
+                  <span className="material-symbols-outlined text-primary text-xl">inbox_text_person</span>
                   <h2>Información Personal</h2>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Nombre Completo</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Nombre Completo</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.nombres} {profile?.apellidos}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Documento de Identidad</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Documento de Identidad</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.documento_identidad || 'No registrado'}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Género</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Género</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.tipo_genero || 'Sin asignar'}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Fecha de Nacimiento</span>
-                    <p className="text-base text-slate-900">
-                      {profile?.fecha_nacimiento ? new Date(profile.fecha_nacimiento).toLocaleDateString('es-CO', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      }) : 'No registrado'}
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de Nacimiento</span>
+                    <p className="text-base text-on-surface font-medium">
+                      {profile?.fecha_nacimiento ? (
+                        typeof profile.fecha_nacimiento === 'string' && (profile.fecha_nacimiento.includes('•') || profile.fecha_nacimiento.includes('*'))
+                          ? profile.fecha_nacimiento
+                          : new Date(profile.fecha_nacimiento.includes('T') ? profile.fecha_nacimiento : profile.fecha_nacimiento + 'T12:00:00').toLocaleDateString('es-CO', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })
+                      ) : 'No registrado'}
                     </p>
                   </div>
-                  
+
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Correo Personal</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Correo Personal</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.correo_personal || 'No registrado'}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Teléfono de Contacto</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Teléfono de Contacto</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.telefono || 'No registrado'}
                     </p>
                   </div>
                 </div>
               </div>
-         
+
               {/* Contacto de Emergencia */}
               <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
                 <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">siren</span>
                   <h2>Contacto de Emergencia</h2>
                 </div>
-        
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">                                    
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Nombre Completo</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Nombre Completo</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.contacto_emergencia || 'No registrado'}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Parentesco</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Parentesco</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.parentesco || 'No registrado'}
                     </p>
                   </div>
-                  
+
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Teléfono de Contacto</span>
-                    <p className="text-base text-slate-900">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Teléfono de Contacto</span>
+                    <p className="text-base text-on-surface font-medium">
                       {profile?.telefono_emergencia || 'No registrado'}
                     </p>
                   </div>
@@ -566,7 +685,7 @@ const PerfilEmpleado = () => {
 
             {/* Right Column (1/3) */}
             <aside className="space-y-6">
-              
+
               {/* Acciones Rápidas */}
               {esPropioPerfil && (
                 <div className="bg-surface-container-lowest rounded-2xl p-8 border border-outline-variant">
@@ -574,35 +693,98 @@ const PerfilEmpleado = () => {
                     <span className="material-symbols-outlined text-primary">bolt</span>
                     <h2 className="font-headline-md text-headline-md text-on-surface">Acciones Rápidas</h2>
                   </div>
-                  
+
                   <div className="space-y-4">
-                    <button 
-                      onClick={handleDescargarCertificado}
-                      disabled={downloading || !profile?.cargo}
-                      className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium py-2.5 px-4 rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-3"
-                    >
-                      {downloading ? (
-                        <>
-                          <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
-                          <span>Generando PDF...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>picture_as_pdf</span>
-                          <span>Descargar Certificación Laboral</span>
-                        </>
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleDescargarCertificado}
+                        disabled={downloading || (user?.rol_id !== 1 && profile?.descargas_mes_actual >= 2)}
+                        className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-400 text-white text-sm font-medium py-2.5 px-4 rounded-lg shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                      >
+                        {downloading ? (
+                          <>
+                            <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                            <span>Generando PDF...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>picture_as_pdf</span>
+                            <span>Descargar Certificación Laboral</span>
+                          </>
+                        )}
+                      </button>
+                      {user?.rol_id !== 1 && (
+                        <div className="flex justify-between items-center px-1 text-xs text-slate-500">
+                          <span>Descargas este mes:</span>
+                          <span className={`font-semibold ${profile?.descargas_mes_actual >= 2 ? 'text-red-500 font-bold' : 'text-emerald-700'}`}>
+                            {profile?.descargas_mes_actual ?? 0} de {profile?.max_descargas_mes ?? 2} usadas
+                          </span>
+                        </div>
                       )}
+                    </div>
+
+                    <button
+                      onClick={() => setIsSolicitudModalOpen(true)}
+                      className="w-full bg-primary/10 hover:bg-primary/20 text-primary font-extrabold text-sm py-2.5 px-4 rounded-lg border border-primary/30 transition-all cursor-pointer flex items-center justify-between group shadow-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-primary">event_busy</span>
+                        <span>Solicitar Permiso / Ausentismo</span>
+                      </div>
+                      <span className="material-symbols-outlined text-xs group-hover:translate-x-1 transition-transform">arrow_forward</span>
                     </button>
-                    
+
                     <button onClick={manejarModuloEnDesarrollo} className="w-full bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant text-sm font-semibold py-2.5 px-4 rounded-lg border border-outline-variant transition-all cursor-pointer flex items-center gap-3">
                       <span className="material-symbols-outlined text-on-surface-variant">receipt_long</span>
                       <span>Ver Desprendibles de Pago</span>
                     </button>
-                    
+
                     <button onClick={manejarModuloEnDesarrollo} className="w-full bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant text-sm font-semibold py-2.5 px-4 rounded-lg border border-outline-variant transition-all cursor-pointer flex items-center gap-3">
                       <span className="material-symbols-outlined text-on-surface-variant">event_available</span>
                       <span>Solicitar Vacaciones</span>
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Mis Solicitudes de Ausentismo */}
+              {esPropioPerfil && misSolicitudes.length > 0 && (
+                <div className="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant space-y-4">
+                  <div className="flex items-center justify-between border-b border-outline-variant/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-xl">history</span>
+                      <h3 className="font-bold text-on-surface text-sm">Mis Solicitudes</h3>
+                    </div>
+                    <span className="text-[11px] font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">
+                      {misSolicitudes.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                    {misSolicitudes.map((sol) => (
+                      <div key={sol.id} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/60 space-y-1.5 text-xs">
+                        <div className="flex justify-between items-start">
+                          <span className="font-bold text-on-surface">{sol.tipo_solicitud}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${sol.estado === 'Aprobado' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
+                            sol.estado === 'Rechazado' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' :
+                              'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                            }`}>
+                            {sol.estado}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-on-surface-variant">
+                          Fecha: {new Date(sol.fecha_inicio.includes('T') ? sol.fecha_inicio : sol.fecha_inicio + 'T12:00:00').toLocaleDateString('es-CO')}
+                        </p>
+                        <p className="text-[11px] text-on-surface line-clamp-2" title={sol.motivo}>
+                          {sol.motivo}
+                        </p>
+                        {sol.comentarios_admin && (
+                          <p className="text-[10px] text-primary italic bg-primary/5 p-1.5 rounded border border-primary/10">
+                            Respuesta: "{sol.comentarios_admin}"
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -612,7 +794,7 @@ const PerfilEmpleado = () => {
                 <h3 className="font-label-caps text-label-caps text-on-surface-variant mb-6 uppercase tracking-widest">
                   Actualización de Datos 2024
                 </h3>
-                
+
                 <div className="space-y-6">
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
@@ -634,7 +816,7 @@ const PerfilEmpleado = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
                       {profile?.fecha_soportes ? (
@@ -655,7 +837,7 @@ const PerfilEmpleado = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
                       {profile?.fecha_seguridad ? (
@@ -681,226 +863,346 @@ const PerfilEmpleado = () => {
 
             </aside>
           </div>
-          
-      {/* Edit Profile Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
-                Editar Datos del Colaborador
-              </h3>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
-              >
-                close
-              </button>
-            </div>
-            
-            <form onSubmit={handleEditSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-              {editError && (
-                <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs rounded-lg p-3">
-                  {editError}
-                </div>
-              )}
-              
-              {/* Datos Personales Básicos */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label htmlFor="nombres" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                    Nombres
-                  </label>
-                  <input
-                    id="nombres"
-                    type="text"
-                    value={editNombres}
-                    onChange={(e) => setEditNombres(e.target.value)}
-                    placeholder="Nombres"
-                    className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label htmlFor="apellidos" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                    Apellidos
-                  </label>
-                  <input
-                    id="apellidos"
-                    type="text"
-                    value={editApellidos}
-                    onChange={(e) => setEditApellidos(e.target.value)}
-                    placeholder="Apellidos"
-                    className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-1">
-                <label htmlFor="documento_identidad" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                  Documento de Identidad
-                </label>
-                <input
-                  id="documento_identidad"
-                  type="text"
-                  value={editDocumentoIdentidad}
-                  onChange={(e) => setEditDocumentoIdentidad(e.target.value)}
-                  placeholder="Número de documento"
-                  className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label htmlFor="tipo_genero" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                    Género
-                  </label>
-                  <select
-                    id="tipo_genero"
-                    value={editTipoGenero}
-                    onChange={(e) => setEditTipoGenero(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+          {/* Edit Profile Modal */}
+          {isModalOpen && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
+                    Editar Datos del Colaborador
+                  </h3>
+                  <button
+                    onClick={() => setIsModalOpen(false)}
+                    className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
                   >
-                    <option value="">Seleccione...</option>
-                    <option value="Masculino">Masculino</option>
-                    <option value="Femenino">Femenino</option>
-                    <option value="Otro">Otro</option>
-                  </select>
+                    close
+                  </button>
                 </div>
-                <div className="space-y-1">
-                  <label htmlFor="fecha_nacimiento" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                    Fecha de Nacimiento
-                  </label>
-                  <input
-                    id="fecha_nacimiento"
-                    type="date"
-                    value={editFechaNacimiento}
-                    onChange={(e) => setEditFechaNacimiento(e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-1">
-                <label htmlFor="telefono" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                  Teléfono
-                </label>
-                <input
-                  id="telefono"
-                  type="text"
-                  value={editTelefono}
-                  onChange={(e) => setEditTelefono(e.target.value)}
-                  placeholder="Ej. +57 300 123 4567"
-                  className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="correo_personal" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                  Correo Personal
-                </label>
-                <input
-                  id="correo_personal"
-                  type="email"
-                  value={editCorreoPersonal}
-                  onChange={(e) => setEditCorreoPersonal(e.target.value)}
-                  placeholder="Ej. personal@correo.com"
-                  className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                />
-              </div>
-
-              <div className="border-t border-outline-variant pt-2 space-y-2">
-                <h4 className="font-bold text-xs text-primary uppercase">Contacto de Emergencia</h4>
-                
-                <div className="space-y-2">
-                  <div className="space-y-1">
-                    <label htmlFor="contacto_emergencia" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                      Nombre Completo
-                    </label>
-                    <input
-                      id="contacto_emergencia"
-                      type="text"
-                      value={editContactoEmergencia}
-                      onChange={(e) => setEditContactoEmergencia(e.target.value)}
-                      placeholder="Nombre completo"
-                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="parentesco" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                      Parentesco
-                    </label>
-                    <input
-                      id="parentesco"
-                      type="text"
-                      value={editParentesco}
-                      onChange={(e) => setEditParentesco(e.target.value)}
-                      placeholder="Ej. Madre, Cónyuge"
-                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="telefono_emergencia" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                      Teléfono de Emergencia
-                    </label>
-                    <input
-                      id="telefono_emergencia"
-                      type="text"
-                      value={editTelefonoEmergencia}
-                      onChange={(e) => setEditTelefonoEmergencia(e.target.value)}
-                      placeholder="Ej. +57 300 000 0000"
-                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1 pt-2">
-                <label htmlFor="foto" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                  Foto de Perfil
-                </label>
-                <input
-                  id="foto"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setSelectedFile(e.target.files[0])}
-                  className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:opacity-90 transition-all text-sm cursor-pointer"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-outline-variant rounded-xl hover:bg-surface-container text-on-surface font-label-caps text-label-caps text-sm transition-all cursor-pointer"
-                  disabled={submittingEdit}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-xl font-label-caps text-label-caps text-sm transition-all cursor-pointer flex items-center gap-2"
-                  disabled={submittingEdit}
-                >
-                  {submittingEdit ? (
-                    <>
-                      <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
-                      <span>Guardando...</span>
-                    </>
-                  ) : (
-                    <span>Guardar Cambios</span>
+                <form onSubmit={handleEditSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                  {editError && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs rounded-lg p-3">
+                      {editError}
+                    </div>
                   )}
-                </button>
+
+                  {/* Datos Personales Básicos */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label htmlFor="nombres" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
+                        Nombres
+                      </label>
+                      <input
+                        id="nombres"
+                        type="text"
+                        value={editNombres}
+                        onChange={(e) => setEditNombres(e.target.value)}
+                        placeholder="Nombres"
+                        className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="apellidos" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
+                        Apellidos
+                      </label>
+                      <input
+                        id="apellidos"
+                        type="text"
+                        value={editApellidos}
+                        onChange={(e) => setEditApellidos(e.target.value)}
+                        placeholder="Apellidos"
+                        className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="documento_identidad" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
+                      Documento de Identidad
+                    </label>
+                    <input
+                      id="documento_identidad"
+                      type="text"
+                      value={editDocumentoIdentidad}
+                      onChange={(e) => setEditDocumentoIdentidad(e.target.value)}
+                      placeholder="Número de documento"
+                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label htmlFor="tipo_genero" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
+                        Género
+                      </label>
+                      <select
+                        id="tipo_genero"
+                        value={editTipoGenero}
+                        onChange={(e) => setEditTipoGenero(e.target.value)}
+                        className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                      >
+                        <option value="">Seleccione...</option>
+                        <option value="Masculino">Masculino</option>
+                        <option value="Femenino">Femenino</option>
+                        <option value="Otro">Otro</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="fecha_nacimiento" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
+                        Fecha de Nacimiento
+                      </label>
+                      <input
+                        id="fecha_nacimiento"
+                        type="date"
+                        value={editFechaNacimiento}
+                        onChange={(e) => setEditFechaNacimiento(e.target.value)}
+                        className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="telefono" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
+                      Teléfono
+                    </label>
+                    <input
+                      id="telefono"
+                      type="text"
+                      value={editTelefono}
+                      onChange={(e) => setEditTelefono(e.target.value)}
+                      placeholder="Ej. +57 300 123 4567"
+                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="correo_personal" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
+                      Correo Personal
+                    </label>
+                    <input
+                      id="correo_personal"
+                      type="email"
+                      value={editCorreoPersonal}
+                      onChange={(e) => setEditCorreoPersonal(e.target.value)}
+                      placeholder="Ej. personal@correo.com"
+                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                    />
+                  </div>
+
+                  <div className="border-t border-outline-variant pt-2 space-y-2">
+                    <h4 className="font-bold text-xs text-primary uppercase">Contacto de Emergencia</h4>
+
+                    <div className="space-y-2">
+                      <div className="space-y-1">
+                        <label htmlFor="contacto_emergencia" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
+                          Nombre Completo
+                        </label>
+                        <input
+                          id="contacto_emergencia"
+                          type="text"
+                          value={editContactoEmergencia}
+                          onChange={(e) => setEditContactoEmergencia(e.target.value)}
+                          placeholder="Nombre completo"
+                          className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label htmlFor="parentesco" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
+                          Parentesco
+                        </label>
+                        <input
+                          id="parentesco"
+                          type="text"
+                          value={editParentesco}
+                          onChange={(e) => setEditParentesco(e.target.value)}
+                          placeholder="Ej. Madre, Cónyuge"
+                          className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label htmlFor="telefono_emergencia" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
+                          Teléfono de Emergencia
+                        </label>
+                        <input
+                          id="telefono_emergencia"
+                          type="text"
+                          value={editTelefonoEmergencia}
+                          onChange={(e) => setEditTelefonoEmergencia(e.target.value)}
+                          placeholder="Ej. +57 300 000 0000"
+                          className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 pt-2">
+                    <label htmlFor="foto" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
+                      Foto de Perfil
+                    </label>
+                    <input
+                      id="foto"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setSelectedFile(e.target.files[0])}
+                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:opacity-90 transition-all text-sm cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-4 py-2 border border-outline-variant rounded-xl hover:bg-surface-container text-on-surface font-label-caps text-label-caps text-sm transition-all cursor-pointer"
+                      disabled={submittingEdit}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-xl font-label-caps text-label-caps text-sm transition-all cursor-pointer flex items-center gap-2"
+                      disabled={submittingEdit}
+                    >
+                      {submittingEdit ? (
+                        <>
+                          <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                          <span>Guardando...</span>
+                        </>
+                      ) : (
+                        <span>Guardar Cambios</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+          )}
+
+          {/* Modal: Solicitar Permiso / Ausentismo Laboral */}
+          {isSolicitudModalOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6">
+                <div className="flex justify-between items-center border-b border-outline-variant pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">event_busy</span>
+                    <h3 className="font-bold text-on-surface text-lg">Solicitud de Permisos</h3>
+                  </div>
+                  <button
+                    onClick={() => setIsSolicitudModalOpen(false)}
+                    className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
+                  >
+                    close
+                  </button>
+                </div>
+
+                <form onSubmit={handleCrearSolicitud} className="space-y-4 text-xs">
+                  <div className="space-y-1">
+                    <label className="block font-bold text-on-surface-variant uppercase tracking-wider">
+                      Tipo de Solicitud *
+                    </label>
+                    <select
+                      value={tipoSolicitud}
+                      onChange={(e) => setTipoSolicitud(e.target.value)}
+                      className="w-full bg-background border border-outline-variant rounded-xl p-3 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+                    >
+                      <option value="Ausentismo Laboral">Ausentismo Laboral (Día / Franja)</option>
+                      <option value="Licencia Médica / Incapacidad">Licencia Médica / Incapacidad</option>
+                      <option value="Cita Médica">Cita Médica</option>
+                      <option value="Permiso Calamidad">Permiso por Calamidad Doméstica</option>
+                      <option value="Vacaciones">Vacaciones</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block font-bold text-on-surface-variant uppercase tracking-wider">
+                        Fecha de Inicio / Día *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={fechaInicioSolicitud}
+                        onChange={(e) => setFechaInicioSolicitud(e.target.value)}
+                        className="w-full bg-background border border-outline-variant rounded-xl p-2.5 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-medium"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block font-bold text-on-surface-variant uppercase tracking-wider">
+                        Fecha de Fin (Opcional)
+                      </label>
+                      <input
+                        type="date"
+                        value={fechaFinSolicitud}
+                        onChange={(e) => setFechaFinSolicitud(e.target.value)}
+                        className="w-full bg-background border border-outline-variant rounded-xl p-2.5 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block font-bold text-on-surface-variant uppercase tracking-wider">
+                      Motivo de la Ausencia *
+                    </label>
+                    <textarea
+                      rows="3"
+                      required
+                      value={motivoSolicitud}
+                      onChange={(e) => setMotivoSolicitud(e.target.value)}
+                      placeholder="Describe la razón o justificación de tu solicitud de permiso..."
+                      className="w-full bg-background border border-outline-variant rounded-xl p-3 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-medium"
+                    ></textarea>
+                  </div>
+
+                  <div className="space-y-1.5 bg-surface-container-low p-3.5 rounded-xl border border-outline-variant">
+                    <label className="block font-bold text-on-surface flex items-center justify-between">
+                      <span>Adjuntar Soporte Documental</span>
+                      <span className="text-[10px] text-on-surface-variant font-normal">PDF, JPG, PNG (Máx 10MB)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf, image/*"
+                      onChange={(e) => setArchivoAdjunto(e.target.files[0])}
+                      className="w-full text-on-surface text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:opacity-90 transition-all cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsSolicitudModalOpen(false)}
+                      className="px-4 py-2 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-xl font-bold transition-all cursor-pointer"
+                      disabled={submittingSolicitud}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingSolicitud}
+                      className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      {submittingSolicitud ? (
+                        <>
+                          <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                          <span>Enviando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[16px]">send</span>
+                          <span>Enviar Solicitud</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>

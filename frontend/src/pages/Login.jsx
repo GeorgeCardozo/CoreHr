@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
+import logoSolo from '../assets/LogoSolo.png';
 
 const Login = () => {
   const [correo, setCorreo] = useState('');
@@ -72,9 +73,9 @@ const Login = () => {
             <div className="text-center lg:text-left">
               <div className="flex items-center justify-center lg:justify-start gap-3 mb-8">
                 <img 
-                  alt="Logo" 
-                  className="w-12 h-12 rounded-lg" 
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHbhFTBXFsPa9oa4pNwrqVmB5RdBGTCTRZMmG3d_zkkrQRxnOQP50TMjBt_uo_x5foSRRrb5-YpCov-PFatdU19JNhz3f-VqSmpAzXPj_KnVA4YE6r5sTN6twa7U_OpQZ_jkH0k_4ljWgyQFNo5A2T5G8QC2NAiuVo5N8wquSv3UF1PcS5BOmZodVPTuU_1Wr6__sKqNDAA5aiHiIkhr6tsxNXPJAG_J9FJR46kTNDH1OnF0mLMBGPQZZ1zLSx4qNzDup7AmwzUHqt"
+                  alt="Logo CoreRRHH" 
+                  className="w-12 h-12 rounded-lg object-contain bg-white p-1 border border-outline-variant/60 shadow-sm" 
+                  src={logoSolo}
                 />
                 <div className="flex flex-col">
                   <span className="font-headline-md text-headline-md text-primary leading-none">CoreRRHH</span>

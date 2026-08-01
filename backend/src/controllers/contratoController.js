@@ -1,29 +1,50 @@
 const db = require('../config/db');
 
+const validarContrato = ({ empleado_id, tipo_contrato, fecha_inicio, fecha_fin, salario, estado }) => {
+  const employeeId = Number(empleado_id);
+  const salary = Number(salario);
+  const normalizedState = estado || 'Activo';
+
+  if (!Number.isInteger(employeeId) || employeeId <= 0 || !tipo_contrato || !fecha_inicio) {
+    return { message: 'Se requieren un empleado válido, tipo de contrato y fecha de inicio.' };
+  }
+  if (!Number.isFinite(salary) || salary < 0) {
+    return { message: 'El salario debe ser un número mayor o igual a cero.' };
+  }
+  if (!['Activo', 'Inactivo'].includes(normalizedState)) {
+    return { message: 'El estado del contrato no es válido.' };
+  }
+  if (fecha_fin && new Date(fecha_fin) < new Date(fecha_inicio)) {
+    return { message: 'La fecha de finalización no puede ser anterior a la fecha de inicio.' };
+  }
+
+  return { employeeId, salary, state: normalizedState };
+};
+
 const crearContrato = async (req, res) => {
   const { empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado } = req.body;
 
-  if (!empleado_id || !tipo_contrato || !fecha_inicio || salario === undefined) {
-    return res.status(400).json({
-      message: 'Se requieren los campos empleado_id, tipo_contrato, fecha_inicio y salario'
-    });
+  const validation = validarContrato(req.body);
+  if (validation.message) {
+    return res.status(400).json({ message: validation.message });
   }
+  const { employeeId, salary, state } = validation;
 
   try {
-    const esActivo = (estado || 'Activo') === 'Activo';
+    const esActivo = state === 'Activo';
 
     if (esActivo) {
       // Buscar contratos activos existentes para este empleado
       const existingRes = await db.query(
-        `SELECT id, fecha_inicio, fecha_fin FROM contratos 
+        `SELECT id, fecha_inicio, fecha_fin FROM contratos
          WHERE empleado_id = $1 AND estado = 'Activo'
          LIMIT 1`,
-        [empleado_id]
+        [employeeId]
       );
 
       if (existingRes.rows.length > 0) {
         const activeContract = existingRes.rows[0];
-        
+
         if (!activeContract.fecha_fin) {
           return res.status(400).json({
             message: 'El empleado ya tiene un contrato activo indefinido. Debe finalizarse o desactivarse antes de asignar uno nuevo.'
@@ -48,13 +69,13 @@ const crearContrato = async (req, res) => {
       RETURNING *
     `;
     const values = [
-      empleado_id, 
-      tipo_contrato, 
+      employeeId,
+      tipo_contrato,
       cargo || null,
-      fecha_inicio, 
-      fecha_fin || null, 
-      salario, 
-      estado || 'Activo'
+      fecha_inicio,
+      fecha_fin || null,
+      salary,
+      state
     ];
 
     const result = await db.query(queryText, values);
@@ -67,7 +88,7 @@ const crearContrato = async (req, res) => {
 
   } catch (error) {
     console.error('Error en contratoController.crearContrato:', error);
-    
+
     if (error.code === '23503') {
       return res.status(400).json({ message: 'El empleado_id especificado no existe' });
     }
@@ -82,11 +103,11 @@ const obtenerContratos = async (req, res) => {
   try {
     let result;
     const queryText = `
-      SELECT c.*, e.nombres, e.apellidos, e.foto_perfil 
-      FROM contratos c 
+      SELECT c.*, e.nombres, e.apellidos, e.foto_perfil
+      FROM contratos c
       JOIN empleados e ON c.empleado_id = e.id
     `;
-    
+
     if (empleado_id) {
       result = await db.query(`${queryText} WHERE c.empleado_id = $1 ORDER BY c.id DESC`, [empleado_id]);
     } else {
@@ -108,22 +129,22 @@ const actualizarContrato = async (req, res) => {
   const { id } = req.params;
   const { empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado } = req.body;
 
-  if (!empleado_id || !tipo_contrato || !fecha_inicio || salario === undefined) {
-    return res.status(400).json({
-      message: 'Se requieren los campos empleado_id, tipo_contrato, fecha_inicio y salario'
-    });
+  const validation = validarContrato(req.body);
+  if (validation.message) {
+    return res.status(400).json({ message: validation.message });
   }
+  const { employeeId, salary, state } = validation;
 
   try {
-    const esActivo = (estado || 'Activo') === 'Activo';
+    const esActivo = state === 'Activo';
 
     if (esActivo) {
       // Buscar otros contratos activos para el mismo empleado
       const existingRes = await db.query(
-        `SELECT id, fecha_inicio, fecha_fin FROM contratos 
+        `SELECT id, fecha_inicio, fecha_fin FROM contratos
          WHERE empleado_id = $1 AND estado = 'Activo' AND id != $2
          LIMIT 1`,
-        [empleado_id, id]
+        [employeeId, id]
       );
 
       if (existingRes.rows.length > 0) {
@@ -153,13 +174,13 @@ const actualizarContrato = async (req, res) => {
       RETURNING *
     `;
     const values = [
-      empleado_id,
+      employeeId,
       tipo_contrato,
       cargo || null,
       fecha_inicio,
       fecha_fin || null,
-      salario,
-      estado || 'Activo',
+      salary,
+      state,
       id
     ];
 

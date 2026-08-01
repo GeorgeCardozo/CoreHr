@@ -1,9 +1,10 @@
-import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import defaultAvatar from '../assets/default_avatar.png';
 import { toast } from 'react-hot-toast';
+import NotificationBell from './NotificationBell';
+import { getAssetUrl } from '../services/api';
+import logoSolo from '../assets/LogoSolo.png';
 
 const AdminLayout = ({ children }) => {
   const { user, logout } = useAuth();
@@ -24,14 +25,14 @@ const AdminLayout = ({ children }) => {
   const activeUserRole = user?.profile?.cargo || 'Senior HR Lead';
   const getAvatar = (emp) => {
     if (emp?.foto_perfil) {
-      return `http://localhost:3000${emp.foto_perfil}`;
+      return getAssetUrl(emp.foto_perfil);
     }
     const nombres = emp?.nombres || 'Alex';
     const apellidos = emp?.apellidos || 'Rivera';
     const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    
+
     const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
+      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
       '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
     ];
     const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
@@ -45,7 +46,7 @@ const AdminLayout = ({ children }) => {
         </text>
       </svg>
     `.trim().replace(/\s+/g, ' ');
-    
+
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   };
 
@@ -65,7 +66,7 @@ const AdminLayout = ({ children }) => {
           </div>
         ) : (
           <div className="mb-10 flex items-center gap-3">
-            <img src="/src/assets/LogoSolo.png" alt="Logo" className="h-10 w-auto object-contain" />
+            <img src={logoSolo} alt="Logo CoreRRHH" className="h-10 w-auto object-contain" />
             <div className="flex flex-col justify-center">
               <p className="text-sm font-bold text-on-surface leading-tight">Gimnasio Los Arrayanes</p>
               <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Portal RRHH</p>
@@ -76,10 +77,10 @@ const AdminLayout = ({ children }) => {
         <nav className="flex-1 space-y-1.5">
           {isAdmin ? (
             <>
-              <button 
+              <button
                 onClick={() => navigate('/dashboard')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage === '/dashboard' 
+                  activePage === '/dashboard'
                     ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
                     : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
                 }`}
@@ -88,7 +89,7 @@ const AdminLayout = ({ children }) => {
                 <span>Panel</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/empleados')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/empleados' || activePage === '/crear-empleado'
@@ -100,7 +101,7 @@ const AdminLayout = ({ children }) => {
                 <span>Colaboradores</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/contratos')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/contratos'
@@ -112,7 +113,19 @@ const AdminLayout = ({ children }) => {
                 <span>Contratos</span>
               </button>
 
-              <button 
+              <button
+                onClick={() => navigate('/solicitudes')}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
+                  activePage === '/solicitudes'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">event_note</span>
+                <span>Solicitudes / Ausentismos</span>
+              </button>
+
+              <button
                 onClick={manejarModuloEnDesarrollo}
                 className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
               >
@@ -120,7 +133,7 @@ const AdminLayout = ({ children }) => {
                 <span>Nómina</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/configuracion')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/configuracion'
@@ -134,7 +147,7 @@ const AdminLayout = ({ children }) => {
             </>
           ) : (
             <>
-              <button 
+              <button
                 onClick={() => navigate('/perfil')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage.startsWith('/perfil')
@@ -146,7 +159,7 @@ const AdminLayout = ({ children }) => {
                 <span>Mi Perfil</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/directorio')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
                   activePage === '/directorio'
@@ -162,7 +175,7 @@ const AdminLayout = ({ children }) => {
         </nav>
 
         <div className="pt-4 border-t border-outline-variant space-y-1">
-          <button 
+          <button
             onClick={manejarModuloEnDesarrollo}
             className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/70 hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
           >
@@ -170,7 +183,7 @@ const AdminLayout = ({ children }) => {
             <span>Soporte</span>
           </button>
 
-          <button 
+          <button
             onClick={logout}
             className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/75 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
           >
@@ -187,15 +200,17 @@ const AdminLayout = ({ children }) => {
           <div className="flex items-center gap-8">
             <div className="relative w-72">
               <span className="absolute left-3 top-2.5 material-symbols-outlined text-on-surface-variant text-[18px]">search</span>
-              <input 
-                type="text" 
-                placeholder="Buscar colaboradores, archivos, tareas..."
+              <input
+                type="text"
+                placeholder="Buscar colaboradores..."
+                aria-label="Campo de búsqueda de colaboradores"
                 className="w-full bg-background border border-outline-variant rounded-lg py-1.5 pl-9 pr-3 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-outline transition-colors"
+                onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { navigate(`/empleados?q=${encodeURIComponent(e.target.value.trim())}`); } }}
               />
             </div>
-            
+
             <div className="hidden md:flex gap-6 items-center h-full">
-              <button 
+              <button
                 onClick={() => navigate('/directorio')}
                 className={`font-bold h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${
                   activePage === '/directorio'
@@ -205,7 +220,7 @@ const AdminLayout = ({ children }) => {
               >
                 Directorio
               </button>
-              <button 
+              <button
                 onClick={() => navigate('/recursos')}
                 className={`h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${
                   activePage === '/recursos'
@@ -220,15 +235,15 @@ const AdminLayout = ({ children }) => {
 
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <button 
-                className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" 
+              <button
+                className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
                 onClick={toggleTheme}
+                aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
                 title={theme === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
               >
                 {theme === 'light' ? 'dark_mode' : 'light_mode'}
               </button>
-              <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>notifications</button>
-              <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>mail</button>
+              <NotificationBell />
             </div>
 
             <div className="flex items-center gap-3 border-l border-outline-variant pl-6">
@@ -236,11 +251,17 @@ const AdminLayout = ({ children }) => {
                 <span className="text-xs font-bold text-on-surface leading-tight">{activeUserName}</span>
                 <span className="text-[10px] text-on-surface-variant font-semibold">{activeUserRole}</span>
               </div>
-              <div className="w-9 h-9 rounded-full bg-surface-container overflow-hidden ring-2 ring-outline-variant cursor-pointer" onClick={() => navigate('/perfil')}>
-                <img 
-                  alt="Current user avatar" 
-                  className="w-full h-full object-cover" 
-                  src={activeUserAvatar} 
+              <div
+                className="w-9 h-9 rounded-full bg-surface-container overflow-hidden ring-2 ring-outline-variant cursor-pointer"
+                onClick={() => navigate('/perfil')}
+                role="button"
+                aria-label="Ver mi perfil"
+                title="Ver mi perfil"
+              >
+                <img
+                  alt="Current user avatar"
+                  className="w-full h-full object-cover"
+                  src={activeUserAvatar}
                 />
               </div>
             </div>

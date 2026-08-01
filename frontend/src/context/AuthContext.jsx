@@ -47,8 +47,8 @@ export const AuthProvider = ({ children }) => {
             perfil = response.data.perfil;
           } catch (profileError) {
             console.warn('No se pudo obtener el perfil completo, continuando con datos básicos:', profileError.message);
-            // Si el error es de autenticación (401 o 403), el token es inválido/expiró en el servidor
-            if (profileError.response && (profileError.response.status === 401 || profileError.response.status === 403)) {
+            // Si el error es de autenticación (401), el token es inválido/expiró en el servidor
+            if (profileError.response && profileError.response.status === 401) {
               throw profileError;
             }
           }

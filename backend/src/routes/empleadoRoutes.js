@@ -13,8 +13,8 @@ router.get('/certificado', verifyToken, generarCertificado);
 // Ruta: GET /api/empleados/directorio (Protegida por JWT, accesible por cualquier rol)
 router.get('/directorio', verifyToken, obtenerDirectorio);
 
-// Ruta: GET /api/empleados (Protegida por JWT)
-router.get('/', verifyToken, listarEmpleados);
+// La lista completa contiene información administrativa y solo la consulta RR.HH.
+router.get('/', verifyToken, verificarAdmin, listarEmpleados);
 
 // Ruta: POST /api/empleados/bulk (Protegida por JWT y Administrador)
 router.post('/bulk', verifyToken, verificarAdmin, crearEmpleadosMasivo);

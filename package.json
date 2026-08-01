@@ -1,0 +1,12 @@
+{
+  "name": "core-rrhh-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CoreRRHH - Sistema On-Premise para gestión de personal y automatización de documentos",
+  "scripts": {
+    "init-db": "node backend/src/config/initDb.js",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build"
+  }
+}

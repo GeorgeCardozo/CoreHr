@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AdminLayout from '../components/AdminLayout';
 import { toast } from 'react-hot-toast';
@@ -117,7 +117,7 @@ Selecciona alguno de los temas rápidos a la izquierda o escribe tu consulta lib
 
     // Agregar mensaje del usuario
     const userMsg = {
-      id: Date.now(),
+      id: `user-${messages.length}-${query.length}`,
       sender: 'user',
       text: query,
       timestamp: new Date()
@@ -130,7 +130,7 @@ Selecciona alguno de los temas rápidos a la izquierda o escribe tu consulta lib
     try {
       const res = await enviarMensajeChat(query);
       const iaMsg = {
-        id: Date.now() + 1,
+        id: `ia-${messages.length}-${res.respuesta?.length || 0}`,
         sender: 'ia',
         text: res.respuesta,
         fuente: res.fuente || 'Gemini AI',
@@ -140,7 +140,7 @@ Selecciona alguno de los temas rápidos a la izquierda o escribe tu consulta lib
     } catch (err) {
       console.error(err);
       const errMsg = {
-        id: Date.now() + 1,
+        id: `error-${messages.length}`,
         sender: 'ia',
         text: 'Lo siento, no pude procesar tu solicitud en este momento. Por favor intenta de nuevo más tarde.',
         fuente: 'Error',
@@ -207,7 +207,14 @@ Selecciona alguno de los temas rápidos a la izquierda o escribe tu consulta lib
   // Renderizar respuestas en Markdown básico de forma segura
   const renderMarkdown = (text) => {
     if (!text) return '';
-    let html = text.replace(/^### (.*$)/gim, '<h4 class="text-xs font-extrabold text-primary tracking-wider mt-3 mb-1 uppercase">$1</h4>');
+    const escapeHtml = (value) => value.replace(/[&<>'"]/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;',
+    }[character]));
+    let html = escapeHtml(text).replace(/^### (.*$)/gim, '<h4 class="text-xs font-extrabold text-primary tracking-wider mt-3 mb-1 uppercase">$1</h4>');
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-on-surface">$1</strong>');
     html = html.replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc text-xs mt-0.5">$1</li>');
     html = html.replace(/`(.*?)`/g, '<code class="bg-surface-container-high px-1 py-0.5 rounded font-mono text-[10px] text-primary">$1</code>');

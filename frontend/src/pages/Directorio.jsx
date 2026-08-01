@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { obtenerDirectorio } from '../services/api';
+import { obtenerDirectorio, getAssetUrl } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
+import NotificationBell from '../components/NotificationBell';
 
 const Directorio = () => {
   const { user, logout } = useAuth();
@@ -91,7 +92,7 @@ const Directorio = () => {
   // Función para asignar avatar premium basado en foto de perfil real o iniciales SVG dinámicas
   const getAvatar = (emp) => {
     if (emp?.foto_perfil) {
-      return `http://localhost:3000${emp.foto_perfil}`;
+      return getAssetUrl(emp.foto_perfil);
     }
     const nombres = emp?.nombres || 'C';
     const apellidos = emp?.apellidos || 'Colaborador';
@@ -124,7 +125,7 @@ const Directorio = () => {
     } else if (d.includes('admin')) {
       return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'; // Administrativo
     } else if (d.includes('direc')) {
-      return 'bg-purple-500/10 text-purple-650 dark:text-purple-450 border border-purple-500/20'; // Directivo
+      return 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20'; // Directivo
     }
     return 'bg-surface-container text-on-surface-variant border border-outline-variant/60';
   };
@@ -323,7 +324,7 @@ const Directorio = () => {
           >
             {theme === 'light' ? 'dark_mode' : 'light_mode'}
           </button>
-          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={manejarModuloEnDesarrollo}>notifications</button>
+          <NotificationBell />
           <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={() => navigate('/configuracion')}>settings</button>
           <div 
             onClick={logout}
