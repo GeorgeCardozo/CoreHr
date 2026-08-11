@@ -14,7 +14,7 @@ const validarContrato = ({ empleado_id, tipo_contrato, fecha_inicio, fecha_fin, 
   if (!['Activo', 'Inactivo'].includes(normalizedState)) {
     return { message: 'El estado del contrato no es válido.' };
   }
-  if (fecha_fin && new Date(fecha_fin) < new Date(fecha_inicio)) {
+  if (fecha_fin && new Date(`${fecha_fin}T00:00:00`) < new Date(`${fecha_inicio}T00:00:00`)) {
     return { message: 'La fecha de finalización no puede ser anterior a la fecha de inicio.' };
   }
 
@@ -98,7 +98,10 @@ const crearContrato = async (req, res) => {
 };
 
 const obtenerContratos = async (req, res) => {
-  const { empleado_id } = req.query;
+  const { empleado_id, limit = 50, page = 1 } = req.query;
+  const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+  const parsedPage = Math.max(parseInt(page) || 1, 1);
+  const offset = (parsedPage - 1) * parsedLimit;
 
   try {
     let result;
@@ -109,14 +112,15 @@ const obtenerContratos = async (req, res) => {
     `;
 
     if (empleado_id) {
-      result = await db.query(`${queryText} WHERE c.empleado_id = $1 ORDER BY c.id DESC`, [empleado_id]);
+      result = await db.query(`${queryText} WHERE c.empleado_id = $1 ORDER BY c.id DESC LIMIT $2 OFFSET $3`, [empleado_id, parsedLimit, offset]);
     } else {
-      result = await db.query(`${queryText} ORDER BY c.id DESC`);
+      result = await db.query(`${queryText} ORDER BY c.id DESC LIMIT $1 OFFSET $2`, [parsedLimit, offset]);
     }
 
     return res.status(200).json({
       message: 'Contratos obtenidos exitosamente',
-      contratos: result.rows
+      contratos: result.rows,
+      pagination: { limit: parsedLimit, page: parsedPage }
     });
 
   } catch (error) {

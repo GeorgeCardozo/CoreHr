@@ -58,7 +58,8 @@ export const AuthProvider = ({ children }) => {
             profile: perfil,
             id: decoded.id,
             rol_id: decoded.rol_id,
-            correo: decoded.correo || (perfil ? perfil.correo : '')
+            correo: decoded.correo || (perfil ? perfil.correo : ''),
+            debe_cambiar_contrasena: false
           });
         } catch (error) {
           console.error('Sesión inválida o expirada:', error);
@@ -91,7 +92,8 @@ export const AuthProvider = ({ children }) => {
       profile,
       id: userData.id,
       rol_id: userData.rol_id,
-      correo: userData.correo
+      correo: userData.correo,
+      debe_cambiar_contrasena: userData.debe_cambiar_contrasena || false
     });
 
     return response.data;
@@ -126,7 +128,8 @@ export const AuthProvider = ({ children }) => {
         profile,
         id: userData.id,
         rol_id: userData.rol_id,
-        correo: userData.correo
+        correo: userData.correo,
+        debe_cambiar_contrasena: userData.debe_cambiar_contrasena || false
       });
 
       return response.data;

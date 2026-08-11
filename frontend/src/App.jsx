@@ -10,6 +10,7 @@ import Directorio from './pages/Directorio';
 import Configuracion from './pages/Configuracion';
 import Recursos from './pages/Recursos';
 import GestionSolicitudes from './pages/GestionSolicitudes';
+import CrearAdmin from './pages/CrearAdmin';
 import { Toaster } from 'react-hot-toast';
 import AdminLayout from './components/AdminLayout';
 
@@ -215,6 +216,14 @@ function App() {
                 <ProtectedRoute>
                   <Configuracion />
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crear-admin"
+              element={
+                <AdminRoute>
+                  <CrearAdmin />
+                </AdminRoute>
               }
             />
 

@@ -134,4 +134,16 @@ export const marcarTodasNotificacionesLeidas = async () => {
   return response.data;
 };
 
+// Cambio de contraseña
+export const cambiarContrasena = async (data) => {
+  const response = await api.put('/auth/cambiar-contrasena', data);
+  return response.data;
+};
+
+// Crear Administrador
+export const crearAdministrador = async (data) => {
+  const response = await api.post('/empleados/crear-admin', data);
+  return response.data;
+};
+
 export default api;

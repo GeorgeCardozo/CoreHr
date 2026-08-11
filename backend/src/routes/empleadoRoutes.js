@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil, crearEmpleadosMasivo } = require('../controllers/empleadoController');
+const { obtenerPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil, crearEmpleadosMasivo, crearAdministrador } = require('../controllers/empleadoController');
 const { verifyToken, verificarAdmin, verificarAdminOPropioEmpleado } = require('../middlewares/auth');
 const upload = require('../middlewares/upload');
 
@@ -30,5 +30,8 @@ router.put('/:id', verifyToken, verificarAdminOPropioEmpleado, actualizarEmplead
 
 // Ruta: DELETE /api/empleados/:id (Protegida por JWT y Administrador)
 router.delete('/:id', verifyToken, verificarAdmin, eliminarEmpleado);
+
+// Ruta: POST /api/empleados/crear-admin (Protegida por JWT y Administrador)
+router.post('/crear-admin', verifyToken, verificarAdmin, crearAdministrador);
 
 module.exports = router;

@@ -33,7 +33,7 @@ const login = async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT id, correo, contrasena, rol_id FROM usuarios WHERE correo = $1',
+      'SELECT id, correo, contrasena, rol_id, debe_cambiar_contrasena FROM usuarios WHERE correo = $1',
       [correo]
     );
     const usuario = result.rows[0];
@@ -47,7 +47,7 @@ const login = async (req, res) => {
     return res.status(200).json({
       message: 'Autenticación exitosa.',
       token,
-      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id },
+      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id, debe_cambiar_contrasena: usuario.debe_cambiar_contrasena },
     });
   } catch (error) {
     console.error('Error en authController.login:', error);
@@ -125,7 +125,7 @@ const loginConGoogle = async (req, res) => {
     }
 
     const result = await db.query(
-      'SELECT id, correo, rol_id, google_id FROM usuarios WHERE correo = $1',
+      'SELECT id, correo, rol_id, google_id, debe_cambiar_contrasena FROM usuarios WHERE correo = $1',
       [correo]
     );
     const usuario = result.rows[0];
@@ -141,7 +141,7 @@ const loginConGoogle = async (req, res) => {
     return res.status(200).json({
       message: 'Autenticación exitosa.',
       token: createToken(usuario),
-      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id },
+      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id, debe_cambiar_contrasena: usuario.debe_cambiar_contrasena },
     });
   } catch (error) {
     console.error('Error en la autenticación con Google:', error);
@@ -149,4 +149,46 @@ const loginConGoogle = async (req, res) => {
   }
 };
 
-module.exports = { login, registro, listarUsuarios, loginConGoogle };
+const cambiarContrasena = async (req, res) => {
+  const userId = req.user.id;
+  const { contrasena_actual, nueva_contrasena } = req.body;
+
+  if (!contrasena_actual || !nueva_contrasena) {
+    return res.status(400).json({ message: 'Se requiere la contraseña actual y la nueva contraseña.' });
+  }
+
+  if (nueva_contrasena.length < 8) {
+    return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+  }
+
+  // Validate password strength: at least one uppercase, one lowercase, one number
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+  if (!passwordRegex.test(nueva_contrasena)) {
+    return res.status(400).json({ message: 'La contraseña debe contener al menos una mayúscula, una minúscula y un número.' });
+  }
+
+  try {
+    const result = await db.query('SELECT contrasena FROM usuarios WHERE id = $1', [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Usuario no encontrado.' });
+    }
+
+    const isMatch = await bcrypt.compare(contrasena_actual, result.rows[0].contrasena);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'La contraseña actual es incorrecta.' });
+    }
+
+    const hash = await bcrypt.hash(nueva_contrasena, 12);
+    await db.query(
+      'UPDATE usuarios SET contrasena = $1, debe_cambiar_contrasena = false WHERE id = $2',
+      [hash, userId]
+    );
+
+    return res.status(200).json({ message: 'Contraseña actualizada exitosamente.' });
+  } catch (error) {
+    console.error('Error en authController.cambiarContrasena:', error);
+    return res.status(500).json({ message: 'Error interno del servidor.' });
+  }
+};
+
+module.exports = { login, registro, listarUsuarios, loginConGoogle, cambiarContrasena };

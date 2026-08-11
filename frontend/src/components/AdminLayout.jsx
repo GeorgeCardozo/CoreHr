@@ -1,18 +1,179 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { toast } from 'react-hot-toast';
 import NotificationBell from './NotificationBell';
-import { getAssetUrl } from '../services/api';
+import CambiarContrasena from './CambiarContrasena';
+import { getAssetUrl, obtenerDirectorio } from '../services/api';
 import logoSolo from '../assets/LogoSolo.png';
 
+const HeaderSearch = () => {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [directory, setDirectory] = useState([]);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const loadDir = async () => {
+      try {
+        const data = await obtenerDirectorio();
+        setDirectory(data.empleados || []);
+      } catch (err) {
+        console.error('Error al obtener directorio para búsqueda:', err);
+      }
+    };
+    loadDir();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const getAvatar = (emp) => {
+    if (emp?.foto_perfil) {
+      return getAssetUrl(emp.foto_perfil);
+    }
+    const nombres = emp?.nombres || 'C';
+    const apellidos = emp?.apellidos || 'Colaborador';
+    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
+    const colores = [
+      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
+      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
+    ];
+    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
+    const color = colores[index];
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><rect width="100" height="100" fill="${color}" /><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit','Inter',sans-serif" font-size="38" font-weight="bold" fill="#ffffff">${iniciales}</text></svg>`.trim().replace(/\s+/g, ' ');
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  };
+
+  const filteredResults = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase().trim();
+    return directory.filter((emp) => {
+      const nombreCompleto = `${emp.nombres || ''} ${emp.apellidos || ''}`.toLowerCase();
+      const cargo = (emp.cargo || '').toLowerCase();
+      const dept = (emp.departamento || '').toLowerCase();
+      return nombreCompleto.includes(q) || cargo.includes(q) || dept.includes(q);
+    }).slice(0, 6);
+  }, [query, directory]);
+
+  const handleSelectEmployee = (empId) => {
+    setIsOpen(false);
+    setQuery('');
+    navigate(`/empleados?edit=${empId}`);
+  };
+
+  const handleSearchSubmit = (e) => {
+    if (e.key === 'Enter' && query.trim()) {
+      setIsOpen(false);
+      navigate(`/empleados?q=${encodeURIComponent(query.trim())}`);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-72 sm:w-80">
+      <div className="relative">
+        <span className="absolute left-3 top-2 material-symbols-outlined text-on-surface-variant text-[18px]">
+          search
+        </span>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={handleSearchSubmit}
+          placeholder="Buscar colaborador para editar..."
+          aria-label="Campo de búsqueda de colaboradores"
+          className="w-full bg-background border border-outline-variant/70 rounded-xl py-1.5 pl-9 pr-8 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
+        />
+        {query && (
+          <button
+            onClick={() => { setQuery(''); setIsOpen(false); }}
+            className="absolute right-2.5 top-2 text-on-surface-variant/60 hover:text-on-surface text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Resultados de Búsqueda Desplegables */}
+      {isOpen && query.trim().length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-lowest border border-outline-variant/60 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="p-2.5 border-b border-outline-variant/40 flex justify-between items-center text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+            <span>Editar Colaborador ({filteredResults.length})</span>
+            <button
+              type="button"
+              onClick={() => { setIsOpen(false); navigate(`/empleados?q=${encodeURIComponent(query.trim())}`); }}
+              className="text-primary hover:underline cursor-pointer flex items-center gap-1 font-bold"
+            >
+              Ver tabla ↵
+            </button>
+          </div>
+
+          {filteredResults.length === 0 ? (
+            <div className="p-4 text-center text-xs text-on-surface-variant">
+              Sin coincidencias para "{query}"
+            </div>
+          ) : (
+            <div className="max-h-64 overflow-y-auto divide-y divide-outline-variant/20">
+              {filteredResults.map((emp) => (
+                <button
+                  key={emp.id}
+                  onClick={() => handleSelectEmployee(emp.id)}
+                  className="w-full text-left p-2.5 flex items-center gap-3 hover:bg-surface-container/60 transition-colors group cursor-pointer"
+                >
+                  <img
+                    src={getAvatar(emp)}
+                    alt={emp.nombres}
+                    className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-outline-variant"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-on-surface group-hover:text-primary transition-colors truncate">
+                      {emp.nombres} {emp.apellidos}
+                    </p>
+                    <p className="text-[10px] text-on-surface-variant truncate">
+                      {emp.cargo || 'Colaborador'} {emp.departamento ? `· ${emp.departamento}` : ''}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold group-hover:bg-emerald-500/20 transition-colors">
+                    <span className="material-symbols-outlined text-[14px]">edit_square</span>
+                    <span>Editar</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AdminLayout = ({ children }) => {
-  const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const activePage = location.pathname;
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const manejarModuloEnDesarrollo = (e) => {
     e?.preventDefault();
@@ -55,10 +216,21 @@ const AdminLayout = ({ children }) => {
   // Si el usuario no es administrador (rol_id !== 1), mostramos un layout simplificado o adaptado
   const isAdmin = user?.rol_id === 1;
 
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const debesCambiar = user?.debe_cambiar_contrasena === true;
+
   return (
     <div className="min-h-screen bg-background text-on-surface flex antialiased font-sans transition-colors duration-200">
+      {/* Mobile Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-20 md:hidden" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      
       {/* Sidebar Navigation */}
-      <aside className="w-64 border-r border-outline-variant bg-surface-container-low flex flex-col p-6 shrink-0 z-10 transition-colors duration-200">
+      <aside className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 w-64 border-r border-outline-variant bg-surface-container-low flex flex-col p-6 shrink-0 z-30 transition-transform duration-300 ease-in-out`}>
         {isAdmin ? (
           <div className="mb-10 flex flex-col">
             <span className="text-2xl font-extrabold text-primary tracking-tight">Admin Center</span>
@@ -79,11 +251,10 @@ const AdminLayout = ({ children }) => {
             <>
               <button
                 onClick={() => navigate('/dashboard')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage === '/dashboard'
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
-                }`}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/dashboard'
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[20px]">grid_view</span>
                 <span>Panel</span>
@@ -91,11 +262,10 @@ const AdminLayout = ({ children }) => {
 
               <button
                 onClick={() => navigate('/empleados')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage === '/empleados' || activePage === '/crear-empleado'
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
-                }`}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/empleados' || activePage === '/crear-empleado'
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[20px]">group</span>
                 <span>Colaboradores</span>
@@ -103,11 +273,10 @@ const AdminLayout = ({ children }) => {
 
               <button
                 onClick={() => navigate('/contratos')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage === '/contratos'
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
-                }`}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/contratos'
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[20px]">description</span>
                 <span>Contratos</span>
@@ -115,11 +284,10 @@ const AdminLayout = ({ children }) => {
 
               <button
                 onClick={() => navigate('/solicitudes')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage === '/solicitudes'
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
-                }`}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/solicitudes'
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[20px]">event_note</span>
                 <span>Solicitudes / Ausentismos</span>
@@ -135,25 +303,34 @@ const AdminLayout = ({ children }) => {
 
               <button
                 onClick={() => navigate('/configuracion')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage === '/configuracion'
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
-                }`}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/configuracion'
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[20px]">settings</span>
                 <span>Ajustes</span>
+              </button>
+
+              <button
+                onClick={() => navigate('/crear-admin')}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/crear-admin'
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+                <span>Crear Administrador</span>
               </button>
             </>
           ) : (
             <>
               <button
                 onClick={() => navigate('/perfil')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage.startsWith('/perfil')
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
-                }`}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage.startsWith('/perfil')
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[20px]">person</span>
                 <span>Mi Perfil</span>
@@ -161,11 +338,10 @@ const AdminLayout = ({ children }) => {
 
               <button
                 onClick={() => navigate('/directorio')}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${
-                  activePage === '/directorio'
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
-                    : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
-                }`}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/directorio'
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[20px]">folder_shared</span>
                 <span>Directorio</span>
@@ -175,6 +351,14 @@ const AdminLayout = ({ children }) => {
         </nav>
 
         <div className="pt-4 border-t border-outline-variant space-y-1">
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/70 hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
+          >
+            <span className="material-symbols-outlined text-[20px]">lock_reset</span>
+            <span>Cambiar Contraseña</span>
+          </button>
+
           <button
             onClick={manejarModuloEnDesarrollo}
             className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/70 hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-semibold cursor-pointer text-left"
@@ -194,39 +378,34 @@ const AdminLayout = ({ children }) => {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 md:ml-0">
         {/* Global Navigation Header */}
-        <header className="h-16 border-b border-outline-variant bg-surface-container-low flex items-center justify-between px-8 z-10 shrink-0 transition-colors duration-200">
-          <div className="flex items-center gap-8">
-            <div className="relative w-72">
-              <span className="absolute left-3 top-2.5 material-symbols-outlined text-on-surface-variant text-[18px]">search</span>
-              <input
-                type="text"
-                placeholder="Buscar colaboradores..."
-                aria-label="Campo de búsqueda de colaboradores"
-                className="w-full bg-background border border-outline-variant rounded-lg py-1.5 pl-9 pr-3 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-outline transition-colors"
-                onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { navigate(`/empleados?q=${encodeURIComponent(e.target.value.trim())}`); } }}
-              />
-            </div>
+        <header className="h-16 border-b border-outline-variant bg-surface-container-low flex items-center justify-between px-4 sm:px-8 z-10 shrink-0 transition-colors duration-200">
+          <div className="flex items-center gap-4 sm:gap-8">
+            <button 
+              className="md:hidden p-2 rounded-lg hover:bg-surface-container text-on-surface cursor-pointer"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <span className="material-symbols-outlined">menu</span>
+            </button>
+            <HeaderSearch />
 
             <div className="hidden md:flex gap-6 items-center h-full">
               <button
                 onClick={() => navigate('/directorio')}
-                className={`font-bold h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${
-                  activePage === '/directorio'
-                    ? 'text-primary border-b-2 border-primary'
-                    : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
-                }`}
+                className={`font-bold h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${activePage === '/directorio'
+                  ? 'text-primary border-b-2 border-primary'
+                  : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
+                  }`}
               >
                 Directorio
               </button>
               <button
                 onClick={() => navigate('/recursos')}
-                className={`h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${
-                  activePage === '/recursos'
-                    ? 'text-primary border-b-2 border-primary font-bold'
-                    : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
-                }`}
+                className={`h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${activePage === '/recursos'
+                  ? 'text-primary border-b-2 border-primary font-bold'
+                  : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
+                  }`}
               >
                 Recursos
               </button>
@@ -273,6 +452,16 @@ const AdminLayout = ({ children }) => {
           {children}
         </main>
       </div>
+
+      {/* Modal de Cambio de Contraseña - Obligatorio al primer login */}
+      {debesCambiar && (
+        <CambiarContrasena obligatorio={true} onClose={() => {}} />
+      )}
+
+      {/* Modal de Cambio de Contraseña - Voluntario */}
+      {showPasswordModal && !debesCambiar && (
+        <CambiarContrasena obligatorio={false} onClose={() => setShowPasswordModal(false)} />
+      )}
     </div>
   );
 };

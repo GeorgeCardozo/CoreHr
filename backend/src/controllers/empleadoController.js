@@ -1,6 +1,8 @@
 const db = require('../config/db');
 const bcrypt = require('bcrypt');
 const PDFDocument = require('pdfkit');
+const { enviarCredenciales } = require('../services/emailService');
+const { sanitizePerfilForViewer } = require('../utils/perfilSanitizer');
 
 const obtenerPerfil = async (req, res) => {
   const requesterUserId = req.user.id;
@@ -92,28 +94,23 @@ const obtenerPerfil = async (req, res) => {
 
     let perfil = result.rows[0];
 
-    // Ocultar y enmascarar datos sensibles si el consultante no es administrador ni el propio dueño del perfil.
-    // Los datos de contacto de emergencia permanecen visibles por razones de seguridad/emergencia laboral.
-    if (requesterRolId !== 1 && Number(perfil.usuario_id) !== Number(requesterUserId)) {
-      perfil.salario = '••••••••';
-      perfil.documento_identidad = '••••••••';
-      perfil.telefono = '••••••••';
-      perfil.correo_personal = '••••••••';
-      perfil.fecha_nacimiento = '••••••••';
+    const isOwner = Number(perfil.usuario_id) === Number(requesterUserId);
+    const isAdmin = requesterRolId === 1;
+
+    if (isOwner || isAdmin) {
+      const descargasRes = await db.query(
+        `SELECT COUNT(*) AS total
+         FROM descargas_certificados
+         WHERE empleado_id = $1
+           AND EXTRACT(MONTH FROM fecha_descarga) = EXTRACT(MONTH FROM CURRENT_DATE)
+           AND EXTRACT(YEAR FROM fecha_descarga) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+        [perfil.id]
+      );
+      perfil.descargas_mes_actual = parseInt(descargasRes.rows[0].total || '0', 10);
+      perfil.max_descargas_mes = 2;
     }
 
-    // Consultar el número de descargas de certificado en el mes actual
-    const descargasRes = await db.query(
-      `SELECT COUNT(*) AS total
-       FROM descargas_certificados
-       WHERE empleado_id = $1
-         AND EXTRACT(MONTH FROM fecha_descarga) = EXTRACT(MONTH FROM CURRENT_DATE)
-         AND EXTRACT(YEAR FROM fecha_descarga) = EXTRACT(YEAR FROM CURRENT_DATE)`,
-      [perfil.id]
-    );
-    const descargasMesActual = parseInt(descargasRes.rows[0].total || '0', 10);
-    perfil.descargas_mes_actual = descargasMesActual;
-    perfil.max_descargas_mes = 2;
+    perfil = sanitizePerfilForViewer(perfil, requesterUserId, requesterRolId);
 
     return res.status(200).json({
       message: 'Perfil obtenido exitosamente',
@@ -217,6 +214,11 @@ const crearEmpleado = async (req, res) => {
     const nuevoEmpleado = employeeResult.rows[0];
 
     await client.query('COMMIT');
+
+    // Enviar correo con credenciales (no bloqueante)
+    enviarCredenciales(correo, `${nombres} ${apellidos}`, contrasena).catch((err) => {
+      console.error('[crearEmpleado] Error al enviar correo de credenciales:', err);
+    });
 
     return res.status(201).json({
       message: 'Colaborador y cuenta de usuario creados exitosamente',
@@ -465,6 +467,14 @@ const eliminarEmpleado = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error en empleadoController.eliminarEmpleado:', error);
+    
+    // 23503 is the PostgreSQL error code for foreign_key_violation
+    if (error.code === '23503') {
+      return res.status(409).json({ 
+        message: 'No se puede eliminar el empleado porque tiene historial de contratos, solicitudes o notificaciones. Por seguridad, debe eliminar estos registros primero o inactivar al empleado.' 
+      });
+    }
+
     return res.status(500).json({ message: 'Error interno del servidor al eliminar empleado' });
   } finally {
     client.release();
@@ -858,6 +868,64 @@ const crearEmpleadosMasivo = async (req, res) => {
   }
 };
 
+const crearAdministrador = async (req, res) => {
+  // Solo un administrador puede crear otro administrador
+  if (req.user.rol_id !== 1) {
+    return res.status(403).json({ message: 'Solo un administrador puede crear otros administradores.' });
+  }
+
+  const { correo, documento_identidad, nombres, apellidos, telefono, departamento } = req.body;
+
+  if (!correo || !documento_identidad || !nombres || !apellidos) {
+    return res.status(400).json({ message: 'Se requieren los campos: correo, documento_identidad, nombres y apellidos.' });
+  }
+
+  const defaultPassword = 'CoreRRHH2025*';
+  const pool = db.pool;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const hash = await bcrypt.hash(defaultPassword, 12);
+    const userResult = await client.query(
+      `INSERT INTO usuarios (correo, contrasena, rol_id, debe_cambiar_contrasena)
+       VALUES ($1, $2, 1, true)
+       RETURNING id`,
+      [correo.trim().toLowerCase(), hash]
+    );
+    const newUserId = userResult.rows[0].id;
+
+    const empResult = await client.query(
+      `INSERT INTO empleados (usuario_id, documento_identidad, nombres, apellidos, telefono, departamento, fecha_ingreso)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE)
+       RETURNING *`,
+      [newUserId, documento_identidad, nombres, apellidos, telefono || null, departamento || 'Administración']
+    );
+
+    await client.query('COMMIT');
+
+    // Enviar correo con credenciales (no bloqueante)
+    enviarCredenciales(correo, `${nombres} ${apellidos}`, defaultPassword).catch((err) => {
+      console.error('[crearAdministrador] Error al enviar correo:', err);
+    });
+
+    return res.status(201).json({
+      message: 'Administrador creado exitosamente. Se ha enviado un correo con las credenciales.',
+      empleado: empResult.rows[0]
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error.code === '23505') {
+      return res.status(400).json({ message: 'El correo o documento de identidad ya están registrados.' });
+    }
+    console.error('Error en crearAdministrador:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al crear administrador.' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   obtenerPerfil,
   crearEmpleado,
@@ -867,5 +935,6 @@ module.exports = {
   generarCertificado,
   obtenerDirectorio,
   subirFotoPerfil,
-  crearEmpleadosMasivo
+  crearEmpleadosMasivo,
+  crearAdministrador
 };

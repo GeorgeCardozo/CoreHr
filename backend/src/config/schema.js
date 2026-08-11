@@ -37,6 +37,7 @@ const ensureSchema = async (client) => {
     )
   `);
   await ensureColumn(client, 'usuarios', 'google_id', 'VARCHAR(255)');
+  await ensureColumn(client, 'usuarios', 'debe_cambiar_contrasena', 'BOOLEAN DEFAULT true');
   await client.query(`UPDATE usuarios SET rol_id = 2 WHERE rol_id NOT IN (1, 2) OR rol_id IS NULL`);
   await client.query(`
     DO $$
@@ -119,7 +120,7 @@ const ensureSchema = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS contratos (
       id SERIAL PRIMARY KEY,
-      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE RESTRICT,
       tipo_contrato VARCHAR(100) NOT NULL,
       cargo VARCHAR(100),
       fecha_inicio DATE NOT NULL,
@@ -135,7 +136,7 @@ const ensureSchema = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS descargas_certificados (
       id SERIAL PRIMARY KEY,
-      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE RESTRICT,
       fecha_descarga TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -143,7 +144,7 @@ const ensureSchema = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS solicitudes (
       id SERIAL PRIMARY KEY,
-      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE RESTRICT,
       tipo_solicitud VARCHAR(100) NOT NULL,
       fecha_inicio DATE NOT NULL,
       fecha_fin DATE NOT NULL,
@@ -163,7 +164,7 @@ const ensureSchema = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS notificaciones (
       id SERIAL PRIMARY KEY,
-      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
       titulo VARCHAR(255) NOT NULL,
       mensaje TEXT NOT NULL,
       tipo VARCHAR(50) NOT NULL DEFAULT 'info',
@@ -177,6 +178,39 @@ const ensureSchema = async (client) => {
   await client.query('CREATE INDEX IF NOT EXISTS idx_contratos_empleado_estado ON contratos(empleado_id, estado)');
   await client.query('CREATE INDEX IF NOT EXISTS idx_solicitudes_empleado_fecha ON solicitudes(empleado_id, fecha_creacion DESC)');
   await client.query('CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_leido ON notificaciones(usuario_id, leido, fecha_creacion DESC)');
+
+  // Ensure constraints are updated for existing tables from CASCADE to RESTRICT
+  const constraintsToUpdate = [
+    { table: 'contratos', constraint: 'contratos_empleado_id_fkey', col: 'empleado_id', refTable: 'empleados' },
+    { table: 'descargas_certificados', constraint: 'descargas_certificados_empleado_id_fkey', col: 'empleado_id', refTable: 'empleados' },
+    { table: 'solicitudes', constraint: 'solicitudes_empleado_id_fkey', col: 'empleado_id', refTable: 'empleados' },
+    { table: 'notificaciones', constraint: 'notificaciones_usuario_id_fkey', col: 'usuario_id', refTable: 'usuarios' }
+  ];
+
+  // Clean up orphaned records that might prevent adding the foreign key
+  await client.query('DELETE FROM contratos WHERE empleado_id NOT IN (SELECT id FROM empleados)');
+  await client.query('DELETE FROM descargas_certificados WHERE empleado_id NOT IN (SELECT id FROM empleados)');
+  await client.query('DELETE FROM solicitudes WHERE empleado_id NOT IN (SELECT id FROM empleados)');
+  await client.query('DELETE FROM notificaciones WHERE usuario_id NOT IN (SELECT id FROM usuarios)');
+
+  for (const c of constraintsToUpdate) {
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = '${c.constraint}' AND confupdtype = 'a' AND confdeltype = 'c'
+        ) THEN
+          ALTER TABLE ${c.table} DROP CONSTRAINT ${c.constraint};
+        END IF;
+        
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = '${c.constraint}'
+        ) THEN
+          ALTER TABLE ${c.table} ADD CONSTRAINT ${c.constraint} FOREIGN KEY (${c.col}) REFERENCES ${c.refTable}(id) ON DELETE RESTRICT;
+        END IF;
+      END $$
+    `);
+  }
 };
 
 module.exports = { ensureSchema };

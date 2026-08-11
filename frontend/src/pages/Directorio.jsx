@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { obtenerDirectorio, getAssetUrl } from '../services/api';
@@ -11,15 +11,22 @@ const Directorio = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [empleados, setEmpleados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   // Estados para filtros
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchParam = new URLSearchParams(location.search).get('q') || '';
+  const [searchTerm, setSearchTerm] = useState(searchParam);
   const [filtroDepartamento, setFiltroDepartamento] = useState('Todos');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
+
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('q') || '';
+    setSearchTerm(q);
+  }, [location.search]);
 
   useEffect(() => {
     setCurrentPage(1);

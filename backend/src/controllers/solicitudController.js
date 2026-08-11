@@ -60,20 +60,21 @@ exports.crearSolicitud = async (req, res) => {
       [empleado.id, String(tipo_solicitud).trim(), fecha_inicio, fechaFinalFinal, String(motivo).trim(), archivo_adjunto]
     );
 
-    // 3. Notificar a todos los usuarios Administradores (rol_id = 1)
-    const adminsRes = await db.query('SELECT id FROM usuarios WHERE rol_id = 1');
-    const adminUsers = adminsRes.rows;
+    // 3. Notificar a todos los usuarios Administradores (rol_id = 1) de manera asíncrona sin bloquear la respuesta
     const fechaFormateada = formatearFechaCorta(fecha_inicio);
-
-    for (const admin of adminUsers) {
-      await crearNotificacionInterna(
-        admin.id,
-        'Nueva Solicitud de Ausentismo',
-        `${empleado.nombres} ${empleado.apellidos} ha enviado una solicitud de ${tipo_solicitud} para el ${fechaFormateada}.`,
-        'warning',
-        '/solicitudes'
-      );
-    }
+    db.query('SELECT id FROM usuarios WHERE rol_id = 1').then(adminsRes => {
+      Promise.allSettled(
+        adminsRes.rows.map(admin =>
+          crearNotificacionInterna(
+            admin.id,
+            'Nueva Solicitud de Ausentismo',
+            `${empleado.nombres} ${empleado.apellidos} ha enviado una solicitud de ${tipo_solicitud} para el ${fechaFormateada}.`,
+            'warning',
+            '/solicitudes'
+          )
+        )
+      ).catch(err => console.error('Error al enviar notificaciones a administradores:', err));
+    }).catch(err => console.error('Error al obtener administradores:', err));
 
     return res.status(201).json({
       message: 'Solicitud enviada con éxito.',
@@ -89,22 +90,34 @@ exports.crearSolicitud = async (req, res) => {
 exports.listarSolicitudes = async (req, res) => {
   const usuario_id = req.user.id;
   const rol_id = req.user.rol_id;
+  const { limit = 50, page = 1 } = req.query;
+  const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+  const parsedPage = Math.max(parseInt(page) || 1, 1);
+  const offset = (parsedPage - 1) * parsedLimit;
 
   try {
     if (rol_id === 1) {
-      // Caso 1: Administrador - Ver todas las solicitudes
+      // Caso 1: Administrador - Ver todas las solicitudes (con LEFT JOIN optimizado)
       const result = await db.query(`
         SELECT s.*, e.nombres, e.apellidos, e.documento_identidad, e.foto_perfil, e.departamento,
-               (SELECT cargo FROM contratos c WHERE c.empleado_id = e.id AND c.estado = 'Activo' ORDER BY c.id DESC LIMIT 1) AS cargo
+               c.cargo
         FROM solicitudes s
         JOIN empleados e ON s.empleado_id = e.id
+        LEFT JOIN LATERAL (
+          SELECT cargo FROM contratos
+          WHERE empleado_id = e.id AND estado = 'Activo'
+          ORDER BY id DESC LIMIT 1
+        ) c ON TRUE
         ORDER BY
           CASE WHEN s.estado = 'Pendiente' THEN 1 ELSE 2 END,
           s.fecha_creacion DESC
-      `);
+        LIMIT $1 OFFSET $2
+      `, [parsedLimit, offset]);
+
       return res.status(200).json({
         message: 'Solicitudes obtenidas exitosamente.',
-        solicitudes: result.rows.map(buildSolicitudResponse)
+        solicitudes: result.rows.map(buildSolicitudResponse),
+        pagination: { limit: parsedLimit, page: parsedPage }
       });
     } else {
       // Caso 2: Colaborador - Ver solo sus solicitudes (Pendientes + Resueltas en los últimos 7 días)
@@ -121,11 +134,13 @@ exports.listarSolicitudes = async (req, res) => {
         WHERE s.empleado_id = $1
           AND (s.estado = 'Pendiente' OR s.fecha_creacion >= NOW() - INTERVAL '7 days')
         ORDER BY s.fecha_creacion DESC
-      `, [empleado_id]);
+        LIMIT $2 OFFSET $3
+      `, [empleado_id, parsedLimit, offset]);
 
       return res.status(200).json({
         message: 'Tus solicitudes obtenidas exitosamente.',
-        solicitudes: result.rows.map(buildSolicitudResponse)
+        solicitudes: result.rows.map(buildSolicitudResponse),
+        pagination: { limit: parsedLimit, page: parsedPage }
       });
     }
   } catch (error) {

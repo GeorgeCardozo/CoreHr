@@ -30,6 +30,7 @@ const seedAdminIfConfigured = async (client) => {
     [email, hash]
   );
   const userId = result.rows[0]?.id || (await client.query('SELECT id FROM usuarios WHERE correo = $1', [email])).rows[0]?.id;
+  await client.query('UPDATE usuarios SET debe_cambiar_contrasena = false WHERE correo = $1', [email]);
 
   if (userId) {
     await client.query(

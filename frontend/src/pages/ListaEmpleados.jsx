@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { obtenerEmpleados, actualizarEmpleado, eliminarEmpleado, crearEmpleadosMasivo, getAssetUrl, subirFotoPerfil } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
+import * as XLSX from 'xlsx';
 
 const ListaEmpleados = () => {
   const [empleados, setEmpleados] = useState([]);
@@ -85,9 +86,64 @@ const ListaEmpleados = () => {
     window.print();
   };
 
+  const handleExportExcel = () => {
+    try {
+      const dataToExport = (empleadosFiltrados.length > 0 ? empleadosFiltrados : empleados).map((emp) => ({
+        'Documento de Identidad': emp.documento_identidad || '',
+        'Nombres': emp.nombres || '',
+        'Apellidos': emp.apellidos || '',
+        'Correo Institucional': emp.correo || '',
+        'Cargo': emp.cargo || 'No registrado',
+        'Departamento': emp.departamento || 'No registrado',
+        'Teléfono': emp.telefono || '',
+        'Fecha de Ingreso': emp.fecha_ingreso ? new Date(emp.fecha_ingreso).toLocaleDateString('es-CO') : '',
+        'Estado Contrato': emp.tiene_contrato ? 'Con Contrato' : 'Sin Contrato',
+        'Correo Personal': emp.correo_personal || '',
+        'Género': emp.tipo_genero || '',
+        'Superior Inmediato': emp.superior_inmediato || '',
+        'Contacto Emergencia': emp.contacto_emergencia || '',
+        'Teléfono Emergencia': emp.telefono_emergencia || '',
+        'Parentesco': emp.parentesco || '',
+        'Habilidades': Array.isArray(emp.habilidades) ? emp.habilidades.join(', ') : (emp.habilidades || '')
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+      worksheet['!cols'] = [
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 30 },
+        { wch: 24 },
+        { wch: 22 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 30 },
+        { wch: 12 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 30 }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Colaboradores');
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(workbook, `Reporte_Colaboradores_${dateStr}.xlsx`);
+
+      toast.success('Reporte Excel generado exitosamente.');
+    } catch (err) {
+      console.error('Error al exportar Excel:', err);
+      toast.error('Error al generar el archivo Excel.');
+    }
+  };
+
   const getAvatar = (emp) => {
     if (emp?.foto_perfil) {
-      return `http://localhost:3000${emp.foto_perfil}`;
+      return getAssetUrl(emp.foto_perfil);
     }
     const nombres = emp?.nombres || 'C';
     const apellidos = emp?.apellidos || 'Colaborador';
@@ -183,6 +239,16 @@ const ListaEmpleados = () => {
   useEffect(() => {
     fetchEmpleados();
   }, []);
+
+  useEffect(() => {
+    const editId = new URLSearchParams(location.search).get('edit');
+    if (editId && empleados.length > 0) {
+      const targetEmp = empleados.find((e) => Number(e.id) === Number(editId));
+      if (targetEmp) {
+        handleOpenEdit(targetEmp);
+      }
+    }
+  }, [location.search, empleados]);
 
   const handleDelete = async (id) => {
     if (window.confirm('¿Está seguro de que desea eliminar a este colaborador? Esta acción también eliminará su cuenta de usuario y es irreversible.')) {
@@ -309,12 +375,25 @@ const ListaEmpleados = () => {
     }
   };
 
+  const searchQuery = new URLSearchParams(location.search).get('q') || '';
+
   const empleadosFiltrados = empleados.filter((emp) => {
-    if (filtroContrato === 'Sin Contrato') {
-      return !emp.tiene_contrato;
+    if (filtroContrato === 'Sin Contrato' && emp.tiene_contrato) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const nombreCompleto = `${emp.nombres || ''} ${emp.apellidos || ''}`.toLowerCase();
+      const matchName = nombreCompleto.includes(q);
+      const matchDoc = (emp.documento_identidad || '').toLowerCase().includes(q);
+      const matchEmail = (emp.correo || '').toLowerCase().includes(q);
+      const matchCargo = (emp.cargo || '').toLowerCase().includes(q);
+      const matchDept = (emp.departamento || '').toLowerCase().includes(q);
+      return matchName || matchDoc || matchEmail || matchCargo || matchDept;
     }
     return true;
   });
+
 
   return (
     <AdminLayout>
@@ -351,12 +430,21 @@ const ListaEmpleados = () => {
               <span>Imprimir PDF</span>
             </button>
             <button
+              onClick={handleExportExcel}
+              className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-semibold rounded-lg py-2.5 px-4 transition-all flex items-center gap-2 cursor-pointer text-xs"
+              title="Exportar listado de colaboradores a Excel (.xlsx)"
+            >
+              <span className="material-symbols-outlined text-[18px]">table_chart</span>
+              <span>Exportar Excel</span>
+            </button>
+            <button
               onClick={() => setIsBulkModalOpen(true)}
               className="bg-surface-container hover:bg-surface-container-low text-on-surface border border-outline-variant font-semibold rounded-lg py-2.5 px-4 transition-all flex items-center gap-2 cursor-pointer text-xs"
             >
               <span className="material-symbols-outlined text-[18px]">upload_file</span>
               <span>Carga Masiva</span>
             </button>
+
             <button
               onClick={() => navigate('/crear-empleado')}
               className="bg-primary hover:bg-primary/90 text-on-primary font-semibold rounded-lg py-2.5 px-4 shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2 cursor-pointer text-xs"
@@ -395,6 +483,12 @@ const ListaEmpleados = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {searchQuery && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-bold">
+                      🔍 "{searchQuery}"
+                      <button onClick={() => navigate('/empleados')} className="hover:text-red-400 font-bold ml-1 cursor-pointer">✕</button>
+                    </span>
+                  )}
                   <div className="flex bg-background border border-outline-variant/60 rounded-lg p-0.5">
                     <button 
                       onClick={() => setFiltroContrato('Todos')}
