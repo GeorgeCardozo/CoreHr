@@ -3,10 +3,11 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const path = require('path');
+const { validatePassword } = require('../utils/passwordPolicy');
+
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ALLOWED_ROLES = new Set([1, 2]);
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
@@ -18,10 +19,24 @@ const getJwtSecret = () => {
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
 const createToken = (usuario, expiresIn = process.env.JWT_EXPIRES_IN || '8h') => jwt.sign(
-  { id: usuario.id, rol_id: usuario.rol_id, correo: usuario.correo },
+  {
+    id: usuario.id,
+    rol_id: usuario.rol_id,
+    correo: usuario.correo,
+    tv: Number(usuario.token_version || 0),
+  },
   getJwtSecret(),
   { expiresIn }
 );
+
+const publicUser = (usuario) => ({
+  id: usuario.id,
+  correo: usuario.correo,
+  rol_id: usuario.rol_id,
+  debe_cambiar_contrasena: Boolean(usuario.debe_cambiar_contrasena),
+});
+
+const obtenerSesion = (req, res) => res.status(200).json({ user: publicUser(req.user) });
 
 const login = async (req, res) => {
   const correo = normalizeEmail(req.body?.correo);
@@ -33,21 +48,22 @@ const login = async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT id, correo, contrasena, rol_id, debe_cambiar_contrasena FROM usuarios WHERE correo = $1',
+      `SELECT id, correo, contrasena, rol_id, activo, token_version, debe_cambiar_contrasena
+       FROM usuarios WHERE correo = $1`,
       [correo]
     );
     const usuario = result.rows[0];
     const passwordMatch = usuario?.contrasena ? await bcrypt.compare(contrasena, usuario.contrasena) : false;
 
-    if (!usuario || !passwordMatch) {
+    // La respuesta no revela si la cuenta existe, está inactiva o tiene una contraseña errónea.
+    if (!usuario || !usuario.activo || !passwordMatch) {
       return res.status(401).json({ message: 'Credenciales inválidas.' });
     }
 
-    const token = createToken(usuario);
     return res.status(200).json({
       message: 'Autenticación exitosa.',
-      token,
-      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id, debe_cambiar_contrasena: usuario.debe_cambiar_contrasena },
+      token: createToken(usuario),
+      user: publicUser(usuario),
     });
   } catch (error) {
     console.error('Error en authController.login:', error);
@@ -55,26 +71,28 @@ const login = async (req, res) => {
   }
 };
 
-// Esta ruta está protegida para que solo RR.HH. pueda crear cuentas.
+// Las cuentas con ficha se crean por /api/empleados. Esta ruta se conserva para
+// integraciones administrativas y nunca permite crear administradores sin ficha.
 const registro = async (req, res) => {
   const correo = normalizeEmail(req.body?.correo);
   const contrasena = req.body?.contrasena;
-  const rolId = Number(req.body?.rol_id ?? 2);
+  const passwordValidation = validatePassword(contrasena);
 
-  if (!EMAIL_PATTERN.test(correo) || typeof contrasena !== 'string' || contrasena.length < 12) {
-    return res.status(400).json({ message: 'El correo debe ser válido y la contraseña debe tener al menos 12 caracteres.' });
-  }
-  if (!ALLOWED_ROLES.has(rolId)) {
-    return res.status(400).json({ message: 'El rol solicitado no es válido.' });
+  if (!EMAIL_PATTERN.test(correo) || !passwordValidation.valid) {
+    return res.status(400).json({
+      message: EMAIL_PATTERN.test(correo)
+        ? passwordValidation.message
+        : 'El correo debe ser válido.',
+    });
   }
 
   try {
     const hash = await bcrypt.hash(contrasena, 12);
     const result = await db.query(
-      `INSERT INTO usuarios (correo, contrasena, rol_id)
-       VALUES ($1, $2, $3)
-       RETURNING id, correo, rol_id`,
-      [correo, hash, rolId]
+      `INSERT INTO usuarios (correo, contrasena, rol_id, debe_cambiar_contrasena)
+       VALUES ($1, $2, 2, true)
+       RETURNING id, correo, rol_id, debe_cambiar_contrasena`,
+      [correo, hash]
     );
 
     return res.status(201).json({ message: 'Usuario registrado exitosamente.', user: result.rows[0] });
@@ -90,7 +108,7 @@ const registro = async (req, res) => {
 const listarUsuarios = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT u.id, u.correo, u.rol_id, r.nombre AS rol
+      `SELECT u.id, u.correo, u.rol_id, u.activo, r.nombre AS rol
        FROM usuarios u
        JOIN roles r ON r.id = u.rol_id
        ORDER BY u.id ASC`
@@ -118,30 +136,35 @@ const loginConGoogle = async (req, res) => {
     const ticket = await client.verifyIdToken({ idToken: tokenGoogle, audience: clientId });
     const payload = ticket.getPayload();
     const correo = normalizeEmail(payload?.email);
-    const allowedDomain = (process.env.GOOGLE_ALLOWED_DOMAIN || 'gla.edu.co').toLowerCase();
+    const allowedDomain = String(process.env.GOOGLE_ALLOWED_DOMAIN || 'gla.edu.co').replace(/^@/, '').toLowerCase();
+    const emailDomain = correo.split('@')[1];
 
-    if (!payload?.email_verified || !correo.endsWith(`@${allowedDomain}`)) {
+    if (!payload?.email_verified || !correo || emailDomain !== allowedDomain) {
       return res.status(403).json({ message: 'Acceso denegado. Usa un correo institucional verificado.' });
     }
 
     const result = await db.query(
-      'SELECT id, correo, rol_id, google_id, debe_cambiar_contrasena FROM usuarios WHERE correo = $1',
+      `SELECT id, correo, rol_id, google_id, activo, token_version, debe_cambiar_contrasena
+       FROM usuarios WHERE correo = $1`,
       [correo]
     );
     const usuario = result.rows[0];
 
-    if (!usuario) {
-      return res.status(403).json({ message: 'Tu correo es válido, pero no está registrado en el portal de Recursos Humanos.' });
+    if (!usuario || !usuario.activo) {
+      return res.status(403).json({ message: 'No es posible autorizar esta cuenta en el portal de Recursos Humanos.' });
     }
-
+    if (usuario.google_id && usuario.google_id !== payload.sub) {
+      return res.status(403).json({ message: 'La identidad de Google no coincide con la cuenta institucional registrada.' });
+    }
     if (!usuario.google_id) {
       await db.query('UPDATE usuarios SET google_id = $1 WHERE id = $2', [payload.sub, usuario.id]);
+      usuario.google_id = payload.sub;
     }
 
     return res.status(200).json({
       message: 'Autenticación exitosa.',
       token: createToken(usuario),
-      user: { id: usuario.id, correo: usuario.correo, rol_id: usuario.rol_id, debe_cambiar_contrasena: usuario.debe_cambiar_contrasena },
+      user: publicUser(usuario),
     });
   } catch (error) {
     console.error('Error en la autenticación con Google:', error);
@@ -151,44 +174,63 @@ const loginConGoogle = async (req, res) => {
 
 const cambiarContrasena = async (req, res) => {
   const userId = req.user.id;
-  const { contrasena_actual, nueva_contrasena } = req.body;
+  const { contrasena_actual, nueva_contrasena } = req.body || {};
+  const passwordValidation = validatePassword(nueva_contrasena);
 
-  if (!contrasena_actual || !nueva_contrasena) {
-    return res.status(400).json({ message: 'Se requiere la contraseña actual y la nueva contraseña.' });
-  }
-
-  if (nueva_contrasena.length < 8) {
-    return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
-  }
-
-  // Validate password strength: at least one uppercase, one lowercase, one number
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-  if (!passwordRegex.test(nueva_contrasena)) {
-    return res.status(400).json({ message: 'La contraseña debe contener al menos una mayúscula, una minúscula y un número.' });
+  if (typeof contrasena_actual !== 'string' || !contrasena_actual || !passwordValidation.valid) {
+    return res.status(400).json({
+      message: passwordValidation.valid
+        ? 'Se requiere la contraseña actual.'
+        : passwordValidation.message,
+    });
   }
 
   try {
-    const result = await db.query('SELECT contrasena FROM usuarios WHERE id = $1', [userId]);
-    if (result.rows.length === 0) {
+    const result = await db.query(
+      `SELECT id, correo, contrasena, rol_id, activo, token_version, debe_cambiar_contrasena
+       FROM usuarios WHERE id = $1`,
+      [userId]
+    );
+    const usuario = result.rows[0];
+    if (!usuario || !usuario.activo) {
       return res.status(404).json({ message: 'Usuario no encontrado.' });
     }
 
-    const isMatch = await bcrypt.compare(contrasena_actual, result.rows[0].contrasena);
+    const isMatch = await bcrypt.compare(contrasena_actual, usuario.contrasena);
     if (!isMatch) {
       return res.status(401).json({ message: 'La contraseña actual es incorrecta.' });
     }
+    if (await bcrypt.compare(nueva_contrasena, usuario.contrasena)) {
+      return res.status(400).json({ message: 'La nueva contraseña debe ser diferente de la actual.' });
+    }
 
     const hash = await bcrypt.hash(nueva_contrasena, 12);
-    await db.query(
-      'UPDATE usuarios SET contrasena = $1, debe_cambiar_contrasena = false WHERE id = $2',
+    const updated = await db.query(
+      `UPDATE usuarios
+       SET contrasena = $1, debe_cambiar_contrasena = false, token_version = token_version + 1
+       WHERE id = $2
+       RETURNING id, correo, rol_id, token_version, debe_cambiar_contrasena`,
       [hash, userId]
     );
 
-    return res.status(200).json({ message: 'Contraseña actualizada exitosamente.' });
+    return res.status(200).json({
+      message: 'Contraseña actualizada exitosamente.',
+      token: createToken(updated.rows[0]),
+      user: publicUser(updated.rows[0]),
+    });
   } catch (error) {
     console.error('Error en authController.cambiarContrasena:', error);
     return res.status(500).json({ message: 'Error interno del servidor.' });
   }
 };
 
-module.exports = { login, registro, listarUsuarios, loginConGoogle, cambiarContrasena };
+module.exports = {
+  login,
+  registro,
+  listarUsuarios,
+  loginConGoogle,
+  cambiarContrasena,
+  obtenerSesion,
+  createToken,
+  normalizeEmail,
+};

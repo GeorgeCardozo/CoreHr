@@ -40,7 +40,13 @@ export const AuthProvider = ({ children }) => {
             throw new Error('Token expirado');
           }
 
-          // 2. Intentamos cargar el perfil completo, pero si falla (404) no deslogueamos al usuario
+          // El backend es la fuente de verdad del rol, el estado de la cuenta y
+          // la obligación de cambiar la contraseña. El JWT solo se decodifica
+          // arriba para descartar rápidamente tokens vencidos o corruptos.
+          const sessionResponse = await api.get('/auth/me');
+          const sessionUser = sessionResponse.data.user;
+
+          // Intentamos cargar el perfil completo, pero si falla (404) no deslogueamos al usuario.
           let perfil = null;
           try {
             const response = await api.get('/empleados/perfil');
@@ -56,10 +62,10 @@ export const AuthProvider = ({ children }) => {
           setUser({
             token,
             profile: perfil,
-            id: decoded.id,
-            rol_id: decoded.rol_id,
-            correo: decoded.correo || (perfil ? perfil.correo : ''),
-            debe_cambiar_contrasena: false
+            id: sessionUser.id,
+            rol_id: sessionUser.rol_id,
+            correo: sessionUser.correo || (perfil ? perfil.correo : ''),
+            debe_cambiar_contrasena: Boolean(sessionUser.debe_cambiar_contrasena)
           });
         } catch (error) {
           console.error('Sesión inválida o expirada:', error);
@@ -93,7 +99,7 @@ export const AuthProvider = ({ children }) => {
       id: userData.id,
       rol_id: userData.rol_id,
       correo: userData.correo,
-      debe_cambiar_contrasena: userData.debe_cambiar_contrasena || false
+      debe_cambiar_contrasena: Boolean(userData.debe_cambiar_contrasena)
     });
 
     return response.data;
@@ -129,7 +135,7 @@ export const AuthProvider = ({ children }) => {
         id: userData.id,
         rol_id: userData.rol_id,
         correo: userData.correo,
-        debe_cambiar_contrasena: userData.debe_cambiar_contrasena || false
+        debe_cambiar_contrasena: Boolean(userData.debe_cambiar_contrasena)
       });
 
       return response.data;

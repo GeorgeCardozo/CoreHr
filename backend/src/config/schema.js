@@ -33,11 +33,19 @@ const ensureSchema = async (client) => {
       correo VARCHAR(255) UNIQUE NOT NULL,
       contrasena VARCHAR(255) NOT NULL,
       rol_id INTEGER NOT NULL DEFAULT 2 REFERENCES roles(id),
-      google_id VARCHAR(255) UNIQUE
+      google_id VARCHAR(255) UNIQUE,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      token_version INTEGER NOT NULL DEFAULT 0,
+      debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT TRUE
     )
   `);
   await ensureColumn(client, 'usuarios', 'google_id', 'VARCHAR(255)');
-  await ensureColumn(client, 'usuarios', 'debe_cambiar_contrasena', 'BOOLEAN DEFAULT true');
+  await ensureColumn(client, 'usuarios', 'activo', 'BOOLEAN NOT NULL DEFAULT TRUE');
+  await ensureColumn(client, 'usuarios', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(client, 'usuarios', 'debe_cambiar_contrasena', 'BOOLEAN NOT NULL DEFAULT true');
+  await client.query('UPDATE usuarios SET activo = TRUE WHERE activo IS NULL');
+  await client.query('UPDATE usuarios SET token_version = 0 WHERE token_version IS NULL');
+  await client.query('UPDATE usuarios SET debe_cambiar_contrasena = TRUE WHERE debe_cambiar_contrasena IS NULL');
   await client.query(`UPDATE usuarios SET rol_id = 2 WHERE rol_id NOT IN (1, 2) OR rol_id IS NULL`);
   await client.query(`
     DO $$
@@ -73,7 +81,9 @@ const ensureSchema = async (client) => {
       parentesco VARCHAR(50),
       telefono_emergencia VARCHAR(50),
       direccion VARCHAR(255),
-      foto_perfil VARCHAR(255)
+      foto_perfil VARCHAR(255),
+      privacidad_perfil JSONB NOT NULL DEFAULT '{}'::jsonb,
+      activo BOOLEAN NOT NULL DEFAULT TRUE
     )
   `);
 
@@ -97,7 +107,9 @@ const ensureSchema = async (client) => {
     parentesco: 'VARCHAR(50)',
     telefono_emergencia: 'VARCHAR(50)',
     direccion: 'VARCHAR(255)',
-    foto_perfil: 'VARCHAR(255)'
+    foto_perfil: 'VARCHAR(255)',
+    privacidad_perfil: `JSONB NOT NULL DEFAULT '{}'::jsonb`,
+    activo: 'BOOLEAN NOT NULL DEFAULT TRUE'
   };
 
   for (const [name, definition] of Object.entries(employeeColumns)) {
@@ -113,6 +125,8 @@ const ensureSchema = async (client) => {
   await client.query(`UPDATE empleados SET nombres = 'Colaborador' WHERE nombres IS NULL OR btrim(nombres) = ''`);
   await client.query(`UPDATE empleados SET apellidos = 'RRHH' WHERE apellidos IS NULL OR btrim(apellidos) = ''`);
   await client.query(`UPDATE empleados SET documento_identidad = 'REG-' || id WHERE documento_identidad IS NULL OR btrim(documento_identidad) = ''`);
+  await client.query('UPDATE empleados SET activo = TRUE WHERE activo IS NULL');
+  await client.query(`UPDATE empleados SET privacidad_perfil = '{}'::jsonb WHERE privacidad_perfil IS NULL`);
   await client.query(`ALTER TABLE empleados ALTER COLUMN nombres SET NOT NULL`);
   await client.query(`ALTER TABLE empleados ALTER COLUMN apellidos SET NOT NULL`);
   await client.query(`ALTER TABLE empleados ALTER COLUMN documento_identidad SET NOT NULL`);
@@ -175,42 +189,15 @@ const ensureSchema = async (client) => {
   `);
 
   await client.query('CREATE INDEX IF NOT EXISTS idx_empleados_usuario_id ON empleados(usuario_id)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_empleados_activo ON empleados(activo)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_usuarios_activo ON usuarios(activo)');
   await client.query('CREATE INDEX IF NOT EXISTS idx_contratos_empleado_estado ON contratos(empleado_id, estado)');
   await client.query('CREATE INDEX IF NOT EXISTS idx_solicitudes_empleado_fecha ON solicitudes(empleado_id, fecha_creacion DESC)');
   await client.query('CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_leido ON notificaciones(usuario_id, leido, fecha_creacion DESC)');
 
-  // Ensure constraints are updated for existing tables from CASCADE to RESTRICT
-  const constraintsToUpdate = [
-    { table: 'contratos', constraint: 'contratos_empleado_id_fkey', col: 'empleado_id', refTable: 'empleados' },
-    { table: 'descargas_certificados', constraint: 'descargas_certificados_empleado_id_fkey', col: 'empleado_id', refTable: 'empleados' },
-    { table: 'solicitudes', constraint: 'solicitudes_empleado_id_fkey', col: 'empleado_id', refTable: 'empleados' },
-    { table: 'notificaciones', constraint: 'notificaciones_usuario_id_fkey', col: 'usuario_id', refTable: 'usuarios' }
-  ];
-
-  // Clean up orphaned records that might prevent adding the foreign key
-  await client.query('DELETE FROM contratos WHERE empleado_id NOT IN (SELECT id FROM empleados)');
-  await client.query('DELETE FROM descargas_certificados WHERE empleado_id NOT IN (SELECT id FROM empleados)');
-  await client.query('DELETE FROM solicitudes WHERE empleado_id NOT IN (SELECT id FROM empleados)');
-  await client.query('DELETE FROM notificaciones WHERE usuario_id NOT IN (SELECT id FROM usuarios)');
-
-  for (const c of constraintsToUpdate) {
-    await client.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1 FROM pg_constraint WHERE conname = '${c.constraint}' AND confupdtype = 'a' AND confdeltype = 'c'
-        ) THEN
-          ALTER TABLE ${c.table} DROP CONSTRAINT ${c.constraint};
-        END IF;
-        
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint WHERE conname = '${c.constraint}'
-        ) THEN
-          ALTER TABLE ${c.table} ADD CONSTRAINT ${c.constraint} FOREIGN KEY (${c.col}) REFERENCES ${c.refTable}(id) ON DELETE RESTRICT;
-        END IF;
-      END $$
-    `);
-  }
+  // Las migraciones son aditivas: no borran datos ni reemplazan llaves foráneas
+  // heredadas. Si una instalación antigua tiene inconsistencias, se detiene y se
+  // corrige con respaldo y una migración explícita aprobada por la institución.
 };
 
 module.exports = { ensureSchema };

@@ -13,6 +13,7 @@ const CrearAdmin = () => {
     documento_identidad: '',
     nombres: '',
     apellidos: '',
+    contrasena: '',
     telefono: '',
     departamento: 'Administración'
   });
@@ -21,7 +22,7 @@ const CrearAdmin = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const camposValidos = formData.correo && formData.documento_identidad && formData.nombres && formData.apellidos;
+  const camposValidos = formData.correo && formData.documento_identidad && formData.nombres && formData.apellidos && formData.contrasena.length >= 12;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -134,6 +135,24 @@ const CrearAdmin = () => {
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-bold text-on-surface mb-1.5">
+                Contraseña temporal <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                name="contrasena"
+                value={formData.contrasena}
+                onChange={handleChange}
+                minLength="12"
+                autoComplete="new-password"
+                placeholder="Mínimo 12 caracteres, mayúscula y número"
+                className="w-full bg-background border border-outline-variant rounded-xl py-2.5 px-3 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
+                required
+              />
+              <p className="mt-1 text-xs text-on-surface-variant">Entrégala por un canal seguro; se exigirá cambiarla en el primer acceso.</p>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-on-surface mb-1.5">
@@ -182,10 +201,10 @@ const CrearAdmin = () => {
                 Credenciales de Acceso
               </p>
               <p className="text-xs text-on-surface-variant">
-                Se asignará la contraseña temporal <code className="bg-surface-container px-1.5 py-0.5 rounded font-mono text-primary font-bold">CoreRRHH2025*</code> y se le pedirá cambiarla al primer inicio de sesión.
+                Define una contraseña temporal robusta y entrégala por un canal seguro. Se exigirá cambiarla en el primer inicio de sesión.
               </p>
               <p className="text-xs text-on-surface-variant">
-                Si el correo electrónico del sistema está configurado, se enviarán las credenciales automáticamente al correo del nuevo administrador.
+                Por seguridad, CoreRRHH no envía contraseñas por correo electrónico.
               </p>
             </div>
           </div>

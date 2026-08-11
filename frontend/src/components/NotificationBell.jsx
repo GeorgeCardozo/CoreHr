@@ -105,7 +105,9 @@ const NotificationBell = () => {
       <button 
         onClick={handleToggle}
         className="relative material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer select-none flex items-center justify-center"
-        title="Bandeja de Notificaciones"
+        title="Notificaciones"
+        aria-label={isOpen ? 'Cerrar notificaciones' : `Abrir notificaciones${noLeidas ? `, ${noLeidas} sin leer` : ''}`}
+        aria-expanded={isOpen}
       >
         notifications
         {noLeidas > 0 && (

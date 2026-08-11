@@ -8,7 +8,7 @@ import CambiarContrasena from './CambiarContrasena';
 import { getAssetUrl, obtenerDirectorio } from '../services/api';
 import logoSolo from '../assets/LogoSolo.png';
 
-const HeaderSearch = () => {
+const HeaderSearch = ({ isAdmin }) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -75,13 +75,13 @@ const HeaderSearch = () => {
   const handleSelectEmployee = (empId) => {
     setIsOpen(false);
     setQuery('');
-    navigate(`/empleados?edit=${empId}`);
+    navigate(isAdmin ? `/empleados?edit=${empId}` : `/perfil/${empId}`);
   };
 
   const handleSearchSubmit = (e) => {
     if (e.key === 'Enter' && query.trim()) {
       setIsOpen(false);
-      navigate(`/empleados?q=${encodeURIComponent(query.trim())}`);
+      navigate(isAdmin ? `/empleados?q=${encodeURIComponent(query.trim())}` : '/directorio');
     }
   };
 
@@ -100,7 +100,7 @@ const HeaderSearch = () => {
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleSearchSubmit}
-          placeholder="Buscar colaborador para editar..."
+          placeholder={isAdmin ? 'Buscar colaborador para editar...' : 'Buscar en el directorio...'}
           aria-label="Campo de búsqueda de colaboradores"
           className="w-full bg-background border border-outline-variant/70 rounded-xl py-1.5 pl-9 pr-8 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
         />
@@ -118,13 +118,16 @@ const HeaderSearch = () => {
       {isOpen && query.trim().length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-lowest border border-outline-variant/60 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="p-2.5 border-b border-outline-variant/40 flex justify-between items-center text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-            <span>Editar Colaborador ({filteredResults.length})</span>
+            <span>{isAdmin ? 'Editar colaborador' : 'Resultados'} ({filteredResults.length})</span>
             <button
               type="button"
-              onClick={() => { setIsOpen(false); navigate(`/empleados?q=${encodeURIComponent(query.trim())}`); }}
+              onClick={() => {
+                setIsOpen(false);
+                navigate(isAdmin ? `/empleados?q=${encodeURIComponent(query.trim())}` : '/directorio');
+              }}
               className="text-primary hover:underline cursor-pointer flex items-center gap-1 font-bold"
             >
-              Ver tabla ↵
+              {isAdmin ? 'Ver tabla ↵' : 'Ver directorio ↵'}
             </button>
           </div>
 
@@ -154,8 +157,8 @@ const HeaderSearch = () => {
                     </p>
                   </div>
                   <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold group-hover:bg-emerald-500/20 transition-colors">
-                    <span className="material-symbols-outlined text-[14px]">edit_square</span>
-                    <span>Editar</span>
+                    <span className="material-symbols-outlined text-[14px]">{isAdmin ? 'edit_square' : 'person'}</span>
+                    <span>{isAdmin ? 'Editar' : 'Ver perfil'}</span>
                   </span>
                 </button>
               ))}
@@ -182,14 +185,14 @@ const AdminLayout = ({ children }) => {
 
   const activeUserName = user?.profile
     ? `${user.profile.nombres} ${user.profile.apellidos || ''}`
-    : (user?.correo ? user.correo.split('@')[0] : 'Alex Rivera');
-  const activeUserRole = user?.profile?.cargo || 'Senior HR Lead';
+    : (user?.correo ? user.correo.split('@')[0] : 'Usuario');
+  const activeUserRole = user?.profile?.cargo || (user?.rol_id === 1 ? 'Gestión Humana' : 'Colaborador');
   const getAvatar = (emp) => {
     if (emp?.foto_perfil) {
       return getAssetUrl(emp.foto_perfil);
     }
-    const nombres = emp?.nombres || 'Alex';
-    const apellidos = emp?.apellidos || 'Rivera';
+    const nombres = emp?.nombres || 'Usuario';
+    const apellidos = emp?.apellidos || 'CoreRRHH';
     const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
 
     const colores = [
@@ -217,7 +220,6 @@ const AdminLayout = ({ children }) => {
   const isAdmin = user?.rol_id === 1;
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const debesCambiar = user?.debe_cambiar_contrasena === true;
 
   return (
     <div className="min-h-screen bg-background text-on-surface flex antialiased font-sans transition-colors duration-200">
@@ -233,8 +235,8 @@ const AdminLayout = ({ children }) => {
       <aside className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 w-64 border-r border-outline-variant bg-surface-container-low flex flex-col p-6 shrink-0 z-30 transition-transform duration-300 ease-in-out`}>
         {isAdmin ? (
           <div className="mb-10 flex flex-col">
-            <span className="text-2xl font-extrabold text-primary tracking-tight">Admin Center</span>
-            <span className="text-[9px] font-extrabold text-on-surface-variant/80 tracking-widest uppercase mt-1">HR Operations</span>
+            <span className="text-2xl font-extrabold text-primary tracking-tight">Centro de administración</span>
+            <span className="text-[9px] font-extrabold text-on-surface-variant/80 tracking-widest uppercase mt-1">Operaciones de Recursos Humanos</span>
           </div>
         ) : (
           <div className="mb-10 flex items-center gap-3">
@@ -346,6 +348,17 @@ const AdminLayout = ({ children }) => {
                 <span className="material-symbols-outlined text-[20px]">folder_shared</span>
                 <span>Directorio</span>
               </button>
+
+              <button
+                onClick={() => navigate('/recursos')}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all text-xs font-semibold cursor-pointer text-left ${activePage === '/recursos'
+                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.08)] font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface'
+                  }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">support_agent</span>
+                <span>Recursos</span>
+              </button>
             </>
           )}
         </nav>
@@ -388,7 +401,7 @@ const AdminLayout = ({ children }) => {
             >
               <span className="material-symbols-outlined">menu</span>
             </button>
-            <HeaderSearch />
+            <HeaderSearch isAdmin={isAdmin} />
 
             <div className="hidden md:flex gap-6 items-center h-full">
               <button
@@ -400,15 +413,17 @@ const AdminLayout = ({ children }) => {
               >
                 Directorio
               </button>
-              <button
-                onClick={() => navigate('/recursos')}
-                className={`h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${activePage === '/recursos'
-                  ? 'text-primary border-b-2 border-primary font-bold'
-                  : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
-                  }`}
-              >
-                Recursos
-              </button>
+              {!isAdmin && (
+                <button
+                  onClick={() => navigate('/recursos')}
+                  className={`h-16 flex items-center px-1 text-sm tracking-wide transition-all cursor-pointer ${activePage === '/recursos'
+                    ? 'text-primary border-b-2 border-primary font-bold'
+                    : 'text-on-surface-variant hover:text-on-surface border-b-2 border-transparent'
+                    }`}
+                >
+                  Recursos
+                </button>
+              )}
             </div>
           </div>
 
@@ -426,23 +441,23 @@ const AdminLayout = ({ children }) => {
             </div>
 
             <div className="flex items-center gap-3 border-l border-outline-variant pl-6">
-              <div className="flex flex-col text-right cursor-pointer" onClick={() => navigate('/perfil')}>
+              <button type="button" className="flex flex-col text-right cursor-pointer" onClick={() => navigate('/perfil')}>
                 <span className="text-xs font-bold text-on-surface leading-tight">{activeUserName}</span>
                 <span className="text-[10px] text-on-surface-variant font-semibold">{activeUserRole}</span>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 className="w-9 h-9 rounded-full bg-surface-container overflow-hidden ring-2 ring-outline-variant cursor-pointer"
                 onClick={() => navigate('/perfil')}
-                role="button"
                 aria-label="Ver mi perfil"
                 title="Ver mi perfil"
               >
                 <img
-                  alt="Current user avatar"
+                  alt="Foto del usuario actual"
                   className="w-full h-full object-cover"
                   src={activeUserAvatar}
                 />
-              </div>
+              </button>
             </div>
           </div>
         </header>
@@ -453,13 +468,8 @@ const AdminLayout = ({ children }) => {
         </main>
       </div>
 
-      {/* Modal de Cambio de Contraseña - Obligatorio al primer login */}
-      {debesCambiar && (
-        <CambiarContrasena obligatorio={true} onClose={() => {}} />
-      )}
-
       {/* Modal de Cambio de Contraseña - Voluntario */}
-      {showPasswordModal && !debesCambiar && (
+      {showPasswordModal && (
         <CambiarContrasena obligatorio={false} onClose={() => setShowPasswordModal(false)} />
       )}
     </div>

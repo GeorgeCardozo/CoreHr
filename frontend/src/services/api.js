@@ -76,6 +76,11 @@ export const obtenerPerfil = async (id) => {
   return response.data;
 };
 
+export const actualizarPrivacidadPerfil = async (preferencias) => {
+  const response = await api.put('/empleados/perfil/privacidad', { preferencias });
+  return response.data;
+};
+
 export const subirFotoPerfil = async (formData) => {
   const response = await api.put('/empleados/perfil/foto', formData);
   return response.data;

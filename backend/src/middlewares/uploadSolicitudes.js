@@ -1,39 +1,30 @@
+const crypto = require('crypto');
+const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 
-// Crear directorio uploads/solicitudes si no existe
 const uploadDir = path.join(__dirname, '../../uploads/solicitudes');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+fs.mkdirSync(uploadDir, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, 'soporte-' + uniqueSuffix + ext);
-  }
-});
-
-const fileFilter = (req, file, cb) => {
-  const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-  if (allowedMimeTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Solo se permiten comprobantes en PDF o archivos de imagen (JPG, PNG, WEBP).'), false);
-  }
+const extensionByMime = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
 };
 
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => cb(null, `soporte-${crypto.randomUUID()}${extensionByMime[file.mimetype] || ''}`),
+});
+
 const uploadSolicitudes = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // Limitar a 10MB
-  }
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (extensionByMime[file.mimetype]) return cb(null, true);
+    return cb(new Error('Solo se permiten comprobantes en PDF, JPG, PNG o WEBP.'), false);
+  },
+  limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 10 },
 });
 
 module.exports = uploadSolicitudes;

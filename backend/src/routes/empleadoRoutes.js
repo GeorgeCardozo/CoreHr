@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil, crearEmpleadosMasivo, crearAdministrador } = require('../controllers/empleadoController');
+const { obtenerPerfil, actualizarPrivacidadPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil, crearEmpleadosMasivo, crearAdministrador } = require('../controllers/empleadoController');
 const { verifyToken, verificarAdmin, verificarAdminOPropioEmpleado } = require('../middlewares/auth');
 const upload = require('../middlewares/upload');
 
@@ -12,6 +12,9 @@ router.get('/certificado', verifyToken, generarCertificado);
 
 // Ruta: GET /api/empleados/directorio (Protegida por JWT, accesible por cualquier rol)
 router.get('/directorio', verifyToken, obtenerDirectorio);
+
+// El titular administra qué datos personales comparte con otros colaboradores.
+router.put('/perfil/privacidad', verifyToken, actualizarPrivacidadPerfil);
 
 // La lista completa contiene información administrativa y solo la consulta RR.HH.
 router.get('/', verifyToken, verificarAdmin, listarEmpleados);

@@ -1,18 +1,25 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import Login from './pages/Login';
-import ListaEmpleados from './pages/ListaEmpleados';
-import CrearEmpleado from './pages/CrearEmpleado';
-import GestionContratos from './pages/GestionContratos';
-import PerfilEmpleado from './pages/PerfilEmpleado';
-import Directorio from './pages/Directorio';
-import Configuracion from './pages/Configuracion';
-import Recursos from './pages/Recursos';
-import GestionSolicitudes from './pages/GestionSolicitudes';
-import CrearAdmin from './pages/CrearAdmin';
 import { Toaster } from 'react-hot-toast';
 import AdminLayout from './components/AdminLayout';
+import CambiarContrasena from './components/CambiarContrasena';
+
+const Login = lazy(() => import('./pages/Login'));
+const ListaEmpleados = lazy(() => import('./pages/ListaEmpleados'));
+const CrearEmpleado = lazy(() => import('./pages/CrearEmpleado'));
+const GestionContratos = lazy(() => import('./pages/GestionContratos'));
+const PerfilEmpleado = lazy(() => import('./pages/PerfilEmpleado'));
+const Directorio = lazy(() => import('./pages/Directorio'));
+const Configuracion = lazy(() => import('./pages/Configuracion'));
+const Recursos = lazy(() => import('./pages/Recursos'));
+const GestionSolicitudes = lazy(() => import('./pages/GestionSolicitudes'));
+const CrearAdmin = lazy(() => import('./pages/CrearAdmin'));
+
+const RouteFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background text-on-surface-variant text-sm">Cargando módulo…</div>
+);
 
 // Componente para proteger rutas privadas generales
 const ProtectedRoute = ({ children }) => {
@@ -62,7 +69,24 @@ const AdminRoute = ({ children }) => {
   return children;
 };
 
-// Componente Dashboard (Home)
+const EmployeeRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return <RouteFallback />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.rol_id !== 2) return <Navigate to="/dashboard" replace />;
+
+  return children;
+};
+
+// Se monta a nivel global para que la contraseña temporal se solicite a todos
+// los roles, incluso en vistas que no utilizan el layout administrativo.
+const PasswordChangeGate = () => {
+  const { user } = useAuth();
+  return user?.debe_cambiar_contrasena ? <CambiarContrasena obligatorio /> : null;
+};
+
+// Panel principal
 const Dashboard = () => {
   const { user } = useAuth();
   const profile = user?.profile;
@@ -76,16 +100,16 @@ const Dashboard = () => {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl p-6 shadow-xl transition-colors duration-200">
           <h2 className="text-xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
-            Bienvenido a Admin Center
+            Bienvenido al centro de administración
           </h2>
           <p className="text-on-surface-variant text-xs mt-1 font-semibold uppercase tracking-wider">
-            SISTEMA DE OPERACIONES DE RECURSOS HUMANOS
+            Sistema de operaciones de Recursos Humanos
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl p-6 shadow-xl space-y-4 transition-colors duration-200">
-            <h3 className="text-xs font-extrabold text-on-surface-variant tracking-widest uppercase border-b border-outline-variant pb-2">Información del Perfil</h3>
+            <h3 className="text-xs font-extrabold text-on-surface-variant tracking-widest uppercase border-b border-outline-variant pb-2">Información del perfil</h3>
             {profile ? (
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <span className="text-on-surface-variant font-semibold">Identificación:</span>
@@ -96,7 +120,7 @@ const Dashboard = () => {
                 <span>{profile.apellidos}</span>
                 <span className="text-on-surface-variant font-semibold">Teléfono:</span>
                 <span>{profile.telefono || 'No registrado'}</span>
-                <span className="text-on-surface-variant font-semibold">Fecha de Ingreso:</span>
+                <span className="text-on-surface-variant font-semibold">Fecha de ingreso:</span>
                 <span>{new Date(profile.fecha_ingreso).toLocaleDateString()}</span>
               </div>
             ) : (
@@ -141,6 +165,7 @@ function App() {
       <AuthProvider>
         <Toaster position="top-right" reverseOrder={false} />
         <Router>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
@@ -173,9 +198,9 @@ function App() {
             <Route
               path="/recursos"
               element={
-                <ProtectedRoute>
+                <EmployeeRoute>
                   <Recursos />
-                </ProtectedRoute>
+                </EmployeeRoute>
               }
             />
             <Route
@@ -229,6 +254,8 @@ function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <PasswordChangeGate />
+          </Suspense>
         </Router>
       </AuthProvider>
     </ThemeProvider>

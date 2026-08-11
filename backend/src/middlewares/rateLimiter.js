@@ -1,46 +1,33 @@
-// Simple in-memory rate limiter middleware with zero external dependencies
-const requests = new Map();
+const getClientKey = (req) => req.ip || req.socket?.remoteAddress || 'unknown';
 
-const rateLimiter = (options = {}) => {
-  const windowMs = options.windowMs || 15 * 60 * 1000; // Default: 15 minutes
-  const maxHits = options.max || 10; // Default: 10 requests per window
-  const message = options.message || { message: 'Demasiados intentos. Por favor intente nuevamente en 15 minutos.' };
-
-  // Periodic cleanup of expired IP keys to prevent memory leaks
-  setInterval(() => {
+const rateLimiter = ({ windowMs = 15 * 60 * 1000, max = 10, message } = {}) => {
+  const requests = new Map();
+  const cleanup = setInterval(() => {
     const now = Date.now();
-    for (const [ip, data] of requests.entries()) {
-      if (now > data.resetTime) {
-        requests.delete(ip);
-      }
+    for (const [key, record] of requests.entries()) {
+      if (record.resetTime <= now) requests.delete(key);
     }
-  }, windowMs).unref();
+  }, Math.min(windowMs, 60 * 60 * 1000));
+  cleanup.unref();
 
   return (req, res, next) => {
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const key = getClientKey(req);
     const now = Date.now();
+    const current = requests.get(key);
+    const record = !current || current.resetTime <= now
+      ? { hits: 1, resetTime: now + windowMs }
+      : { ...current, hits: current.hits + 1 };
 
-    if (!requests.has(ip)) {
-      requests.set(ip, { hits: 1, resetTime: now + windowMs });
-      return next();
-    }
+    requests.set(key, record);
+    res.setHeader('RateLimit-Limit', max);
+    res.setHeader('RateLimit-Remaining', Math.max(0, max - record.hits));
+    res.setHeader('RateLimit-Reset', Math.ceil(record.resetTime / 1000));
 
-    const record = requests.get(ip);
-
-    if (now > record.resetTime) {
-      record.hits = 1;
-      record.resetTime = now + windowMs;
-      return next();
-    }
-
-    record.hits += 1;
-
-    if (record.hits > maxHits) {
+    if (record.hits > max) {
       res.setHeader('Retry-After', Math.ceil((record.resetTime - now) / 1000));
-      return res.status(429).json(message);
+      return res.status(429).json(message || { message: 'Demasiados intentos. Intenta nuevamente más tarde.' });
     }
-
-    next();
+    return next();
   };
 };
 

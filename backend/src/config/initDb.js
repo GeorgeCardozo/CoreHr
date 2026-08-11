@@ -2,6 +2,7 @@ const { Client } = require('pg');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const { ensureSchema } = require('./schema');
+const { validatePassword } = require('../utils/passwordPolicy');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const databaseName = process.env.DB_DATABASE || 'core_rrhh';
@@ -17,8 +18,9 @@ const seedAdminIfConfigured = async (client) => {
   const password = process.env.SEED_ADMIN_PASSWORD;
 
   if (!email && !password) return;
-  if (!email || !password || password.length < 12) {
-    throw new Error('SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD son obligatorios; la contraseña debe tener al menos 12 caracteres.');
+  const passwordValidation = validatePassword(password);
+  if (!email || !password || !passwordValidation.valid) {
+    throw new Error(`SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD son obligatorios; ${passwordValidation.message || 'la contraseña no es válida.'}`);
   }
 
   const hash = await bcrypt.hash(password, 12);
@@ -30,7 +32,7 @@ const seedAdminIfConfigured = async (client) => {
     [email, hash]
   );
   const userId = result.rows[0]?.id || (await client.query('SELECT id FROM usuarios WHERE correo = $1', [email])).rows[0]?.id;
-  await client.query('UPDATE usuarios SET debe_cambiar_contrasena = false WHERE correo = $1', [email]);
+  await client.query('UPDATE usuarios SET activo = TRUE, debe_cambiar_contrasena = TRUE WHERE correo = $1', [email]);
 
   if (userId) {
     await client.query(

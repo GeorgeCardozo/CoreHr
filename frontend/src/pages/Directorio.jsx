@@ -8,7 +8,7 @@ import AdminLayout from '../components/AdminLayout';
 import NotificationBell from '../components/NotificationBell';
 
 const Directorio = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -207,22 +207,15 @@ const Directorio = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {empleadosPaginados.map((emp) => {
-            const isJaime = (emp.nombres || '').toLowerCase().includes('jaime');
-            const isOnline = !isJaime; 
-            
-            return (
+          {empleadosPaginados.map((emp) => (
               <div 
                 key={emp.id}
                 className="bg-surface-container-lowest border border-outline-variant/60 hover:border-primary/40 rounded-2xl shadow-xl hover:shadow-primary/5 p-6 flex flex-col items-center text-center relative transition-all duration-300 group hover:-translate-y-1"
               >
-                {/* Status Indicator */}
-                <span className={`absolute top-4 right-4 w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-600'}`}></span>
-                
                 {/* Avatar */}
                 <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-outline-variant mb-4 group-hover:border-primary/30 transition-colors bg-surface-container shadow-inner">
                   <img 
-                    alt={`${emp.nombres} profile picture`}
+                    alt={`Foto de perfil de ${emp.nombres} ${emp.apellidos}`}
                     className="w-full h-full object-cover" 
                     src={getAvatar(emp)} 
                   />
@@ -247,12 +240,11 @@ const Directorio = () => {
                   }}
                   className="bg-primary hover:opacity-90 border border-transparent text-on-primary font-bold py-2.5 px-4 rounded-xl w-full mt-6 flex items-center justify-center gap-2 transition-all cursor-pointer text-xs shadow-sm"
                 >
-                  <span>Ver Perfil</span>
+                  <span>Ver perfil</span>
                   <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                 </button>
               </div>
-            );
-          })}
+          ))}
         </div>
       )}
 
@@ -318,7 +310,7 @@ const Directorio = () => {
           <span className="font-headline-md text-headline-md font-bold text-primary cursor-pointer" onClick={() => navigate('/perfil')}>CoreRRHH</span>
           <nav className="hidden md:flex gap-2 items-center">
             <Link className="text-primary hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-bold border border-primary/20 bg-primary/10" to="/directorio">Directorio</Link>
-            <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Beneficios</a>
+            <Link className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" to="/recursos">Recursos</Link>
             <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Capacitación</a>
             <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Nómina</a>
           </nav>
@@ -327,23 +319,26 @@ const Directorio = () => {
           <button 
             className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" 
             onClick={toggleTheme}
-            title={theme === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
+            title={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
+            aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
           >
             {theme === 'light' ? 'dark_mode' : 'light_mode'}
           </button>
           <NotificationBell />
-          <button className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={() => navigate('/configuracion')}>settings</button>
-          <div 
-            onClick={logout}
-            title="Cerrar Sesión"
+          <button aria-label="Abrir configuración" title="Abrir configuración" className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer" onClick={() => navigate('/configuracion')}>settings</button>
+          <button
+            type="button"
+            onClick={() => navigate('/perfil')}
+            title="Ver mi perfil"
+            aria-label="Ver mi perfil"
             className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer hover:opacity-80 transition-opacity"
           >
             <img 
-              alt="Employee Profile Avatar" 
+              alt="Foto de mi perfil"
               className="w-full h-full object-cover" 
               src={getAvatar(user?.profile)}
             />
-          </div>
+          </button>
         </div>
       </header>
 
@@ -357,10 +352,10 @@ const Directorio = () => {
         <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-on-surface-variant">
           <div className="flex items-center gap-6">
             <span className="font-bold text-sm text-primary">CoreRRHH</span>
-            <span>© 2026 Gimnasio Los Arrayanes Bilingüe. All rights reserved.</span>
+            <span>© 2026 Gimnasio Los Arrayanes Bilingüe. Todos los derechos reservados.</span>
           </div>
           <div className="flex gap-4 font-semibold">
-            <a href="#" className="hover:text-primary transition-colors" onClick={manejarModuloEnDesarrollo}>Soporte</a>
+            <a href="mailto:soporte@arrayanes.edu.co" className="hover:text-primary transition-colors">Soporte</a>
             <a href="#" className="hover:text-primary transition-colors" onClick={manejarModuloEnDesarrollo}>Privacidad</a>
             <a href="#" className="hover:text-primary transition-colors" onClick={manejarModuloEnDesarrollo}>Términos</a>
           </div>

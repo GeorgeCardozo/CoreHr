@@ -58,7 +58,7 @@ const FloatingSelect = ({ label, id, name, value, onChange, options, required = 
         className="block w-full px-3 pt-5 pb-1.5 text-xs text-on-surface bg-transparent border-0 focus:outline-none focus:ring-0 cursor-pointer appearance-none"
         style={{ colorScheme: 'dark' }}
       >
-        <option value="" disabled className="bg-background text-on-surface-variant/70">Search by name...</option>
+        <option value="" disabled className="bg-background text-on-surface-variant/70">Buscar por nombre…</option>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value} className="bg-background text-on-surface">
             {opt.label}

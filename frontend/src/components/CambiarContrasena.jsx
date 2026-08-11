@@ -1,202 +1,250 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cambiarContrasena } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 
+const CheckIcon = ({ valid }) => (
+  <span className={`material-symbols-outlined text-[16px] ${valid ? 'text-emerald-500' : 'text-on-surface-variant/40'}`} aria-hidden="true">
+    {valid ? 'check_circle' : 'radio_button_unchecked'}
+  </span>
+);
+
 const CambiarContrasena = ({ obligatorio = false, onClose }) => {
-  const { user, setUser } = useAuth();
+  const { setUser, logout } = useAuth();
   const [formData, setFormData] = useState({
     contrasena_actual: '',
     nueva_contrasena: '',
-    confirmar_contrasena: ''
+    confirmar_contrasena: '',
   });
   const [loading, setLoading] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !obligatorio) onClose?.();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [obligatorio, onClose]);
 
   const validaciones = {
-    longitud: formData.nueva_contrasena.length >= 8,
+    longitud: formData.nueva_contrasena.length >= 12,
     mayuscula: /[A-Z]/.test(formData.nueva_contrasena),
     minuscula: /[a-z]/.test(formData.nueva_contrasena),
     numero: /\d/.test(formData.nueva_contrasena),
-    coincide: formData.nueva_contrasena === formData.confirmar_contrasena && formData.confirmar_contrasena.length > 0
+    coincide: formData.nueva_contrasena === formData.confirmar_contrasena && formData.confirmar_contrasena.length > 0,
   };
 
   const formularioValido = Object.values(validaciones).every(Boolean) && formData.contrasena_actual.length > 0;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formularioValido) return;
+  const updateField = (field, value) => {
+    setError('');
+    setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!formularioValido || loading) return;
 
     setLoading(true);
+    setError('');
     try {
-      await cambiarContrasena({
+      const response = await cambiarContrasena({
         contrasena_actual: formData.contrasena_actual,
-        nueva_contrasena: formData.nueva_contrasena
+        nueva_contrasena: formData.nueva_contrasena,
       });
 
-      toast.success('Contraseña actualizada exitosamente.');
+      if (response.token) localStorage.setItem('token', response.token);
+      setUser((current) => ({
+        ...current,
+        ...(response.user || {}),
+        token: response.token || current.token,
+        debe_cambiar_contrasena: false,
+      }));
 
-      // Actualizar el estado del usuario para que no vuelva a pedir cambiar contraseña
-      setUser((prev) => ({ ...prev, debe_cambiar_contrasena: false }));
-
-      if (onClose) onClose();
-    } catch (err) {
-      const message = err.response?.data?.message || 'Error al cambiar la contraseña.';
+      toast.success('Contraseña actualizada correctamente.');
+      onClose?.();
+    } catch (requestError) {
+      const message = requestError.response?.data?.message || 'No fue posible cambiar la contraseña.';
+      setError(message);
       toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const CheckIcon = ({ valid }) => (
-    <span className={`material-symbols-outlined text-[16px] ${valid ? 'text-emerald-500' : 'text-on-surface-variant/40'}`}>
-      {valid ? 'check_circle' : 'radio_button_unchecked'}
-    </span>
-  );
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-      <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-white text-[28px]">lock_reset</span>
-            <div>
-              <h2 className="text-lg font-bold text-white">
-                {obligatorio ? 'Cambio de Contraseña Obligatorio' : 'Cambiar Contraseña'}
-              </h2>
-              <p className="text-emerald-100 text-xs mt-0.5">
-                {obligatorio
-                  ? 'Debes cambiar tu contraseña temporal para continuar.'
-                  : 'Actualiza tu contraseña de acceso al sistema.'
-                }
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {obligatorio && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5">
-              <span className="material-symbols-outlined text-amber-500 text-[20px] shrink-0 mt-0.5">warning</span>
-              <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                Estás usando una contraseña temporal. Por seguridad, debes cambiarla antes de continuar usando el sistema.
-              </p>
-            </div>
-          )}
-
-          {/* Contraseña Actual */}
-          <div>
-            <label className="block text-xs font-bold text-on-surface mb-1.5">Contraseña Actual</label>
-            <div className="relative">
-              <input
-                type={showPasswords ? 'text' : 'password'}
-                value={formData.contrasena_actual}
-                onChange={(e) => setFormData({ ...formData, contrasena_actual: e.target.value })}
-                placeholder="Ingresa tu contraseña actual"
-                className="w-full bg-background border border-outline-variant rounded-xl py-2.5 px-3 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
-                autoFocus
-                required
-              />
-            </div>
-          </div>
-
-          {/* Nueva Contraseña */}
-          <div>
-            <label className="block text-xs font-bold text-on-surface mb-1.5">Nueva Contraseña</label>
-            <input
-              type={showPasswords ? 'text' : 'password'}
-              value={formData.nueva_contrasena}
-              onChange={(e) => setFormData({ ...formData, nueva_contrasena: e.target.value })}
-              placeholder="Ingresa la nueva contraseña"
-              className="w-full bg-background border border-outline-variant rounded-xl py-2.5 px-3 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
-              required
-            />
-          </div>
-
-          {/* Confirmar Contraseña */}
-          <div>
-            <label className="block text-xs font-bold text-on-surface mb-1.5">Confirmar Nueva Contraseña</label>
-            <input
-              type={showPasswords ? 'text' : 'password'}
-              value={formData.confirmar_contrasena}
-              onChange={(e) => setFormData({ ...formData, confirmar_contrasena: e.target.value })}
-              placeholder="Confirma la nueva contraseña"
-              className="w-full bg-background border border-outline-variant rounded-xl py-2.5 px-3 text-xs text-on-surface placeholder-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
-              required
-            />
-          </div>
-
-          {/* Toggle mostrar contraseñas */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showPasswords}
-              onChange={(e) => setShowPasswords(e.target.checked)}
-              className="accent-emerald-500 w-3.5 h-3.5"
-            />
-            <span className="text-[11px] text-on-surface-variant font-medium">Mostrar contraseñas</span>
-          </label>
-
-          {/* Requisitos de seguridad */}
-          <div className="bg-surface-container/50 rounded-xl p-3 space-y-1.5">
-            <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Requisitos de Seguridad</p>
-            <div className="flex items-center gap-2 text-xs">
-              <CheckIcon valid={validaciones.longitud} />
-              <span className={validaciones.longitud ? 'text-on-surface font-medium' : 'text-on-surface-variant'}>Mínimo 8 caracteres</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <CheckIcon valid={validaciones.mayuscula} />
-              <span className={validaciones.mayuscula ? 'text-on-surface font-medium' : 'text-on-surface-variant'}>Al menos una mayúscula</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <CheckIcon valid={validaciones.minuscula} />
-              <span className={validaciones.minuscula ? 'text-on-surface font-medium' : 'text-on-surface-variant'}>Al menos una minúscula</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <CheckIcon valid={validaciones.numero} />
-              <span className={validaciones.numero ? 'text-on-surface font-medium' : 'text-on-surface-variant'}>Al menos un número</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <CheckIcon valid={validaciones.coincide} />
-              <span className={validaciones.coincide ? 'text-on-surface font-medium' : 'text-on-surface-variant'}>Las contraseñas coinciden</span>
-            </div>
-          </div>
-
-          {/* Botones */}
-          <div className="flex gap-3 pt-2">
-            {!obligatorio && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 bg-surface-container hover:bg-surface-container-low text-on-surface border border-outline-variant font-semibold rounded-xl py-2.5 px-4 text-xs transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-            )}
-            <button
-              type="submit"
-              disabled={!formularioValido || loading}
-              className={`flex-1 font-bold rounded-xl py-2.5 px-4 text-xs transition-all flex items-center justify-center gap-2 ${
-                formularioValido && !loading
-                  ? 'bg-primary hover:bg-primary/90 text-on-primary cursor-pointer shadow-lg'
-                  : 'bg-surface-container text-on-surface-variant/50 cursor-not-allowed'
-              }`}
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-t-2 border-b-2 border-current"></div>
-                  <span>Actualizando...</span>
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[16px]">lock</span>
-                  <span>Actualizar Contraseña</span>
-                </>
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-black/60 p-3 backdrop-blur-sm sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="password-dialog-title"
+    >
+      <div className="flex min-h-full items-center justify-center">
+        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+          <header className="shrink-0 bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined mt-0.5 text-[26px] text-white" aria-hidden="true">lock_reset</span>
+              <div className="min-w-0 flex-1">
+                <h2 id="password-dialog-title" className="text-base font-bold text-white sm:text-lg">
+                  {obligatorio ? 'Cambio de contraseña obligatorio' : 'Cambiar contraseña'}
+                </h2>
+                <p className="mt-0.5 text-xs text-emerald-100">
+                  {obligatorio
+                    ? 'Actualiza tu contraseña temporal para continuar.'
+                    : 'Actualiza tu contraseña de acceso al sistema.'}
+                </p>
+              </div>
+              {!obligatorio && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-full p-1 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+                  aria-label="Cerrar ventana"
+                >
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+                </button>
               )}
-            </button>
-          </div>
-        </form>
+            </div>
+          </header>
+
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+              {obligatorio && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                  <span className="material-symbols-outlined mt-0.5 shrink-0 text-[20px] text-amber-500" aria-hidden="true">warning</span>
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    Estás usando una contraseña temporal. Por seguridad debes cambiarla antes de continuar.
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-medium text-red-700 dark:text-red-300" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="current-password" className="mb-1.5 block text-xs font-bold text-on-surface">Contraseña actual</label>
+                <input
+                  id="current-password"
+                  type={showPasswords ? 'text' : 'password'}
+                  value={formData.contrasena_actual}
+                  onChange={(event) => updateField('contrasena_actual', event.target.value)}
+                  placeholder="Ingresa tu contraseña actual"
+                  className="w-full rounded-xl border border-outline-variant bg-background px-3 py-2.5 text-xs text-on-surface transition-colors placeholder-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  autoComplete="current-password"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="new-password" className="mb-1.5 block text-xs font-bold text-on-surface">Nueva contraseña</label>
+                <input
+                  id="new-password"
+                  type={showPasswords ? 'text' : 'password'}
+                  value={formData.nueva_contrasena}
+                  onChange={(event) => updateField('nueva_contrasena', event.target.value)}
+                  placeholder="Ingresa la nueva contraseña"
+                  className="w-full rounded-xl border border-outline-variant bg-background px-3 py-2.5 text-xs text-on-surface transition-colors placeholder-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-bold text-on-surface">Confirmar nueva contraseña</label>
+                <input
+                  id="confirm-password"
+                  type={showPasswords ? 'text' : 'password'}
+                  value={formData.confirmar_contrasena}
+                  onChange={(event) => updateField('confirmar_contrasena', event.target.value)}
+                  placeholder="Confirma la nueva contraseña"
+                  className="w-full rounded-xl border border-outline-variant bg-background px-3 py-2.5 text-xs text-on-surface transition-colors placeholder-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+
+              <label className="flex cursor-pointer select-none items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showPasswords}
+                  onChange={(event) => setShowPasswords(event.target.checked)}
+                  className="h-3.5 w-3.5 accent-emerald-500"
+                />
+                <span className="text-[11px] font-medium text-on-surface-variant">Mostrar contraseñas</span>
+              </label>
+
+              <div className="space-y-1.5 rounded-xl bg-surface-container/50 p-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Requisitos de seguridad</p>
+                {[
+                  ['longitud', 'Mínimo 12 caracteres'],
+                  ['mayuscula', 'Al menos una mayúscula'],
+                  ['minuscula', 'Al menos una minúscula'],
+                  ['numero', 'Al menos un número'],
+                  ['coincide', 'Las contraseñas coinciden'],
+                ].map(([key, label]) => (
+                  <div key={key} className="flex items-center gap-2 text-xs">
+                    <CheckIcon valid={validaciones[key]} />
+                    <span className={validaciones[key] ? 'font-medium text-on-surface' : 'text-on-surface-variant'}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <footer className="flex shrink-0 gap-3 border-t border-outline-variant/60 bg-surface-container-lowest p-4 sm:px-6">
+              {obligatorio ? (
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-xl border border-outline-variant bg-surface-container px-4 py-2.5 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-low"
+                >
+                  Cerrar sesión
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-outline-variant bg-surface-container px-4 py-2.5 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-low"
+                >
+                  Cancelar
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={!formularioValido || loading}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+                  formularioValido && !loading
+                    ? 'cursor-pointer bg-primary text-on-primary shadow-lg hover:bg-primary/90'
+                    : 'cursor-not-allowed bg-surface-container text-on-surface-variant/50'
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+                    Actualizando…
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">lock</span>
+                    Actualizar contraseña
+                  </>
+                )}
+              </button>
+            </footer>
+          </form>
+        </div>
       </div>
     </div>
   );

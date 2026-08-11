@@ -2,10 +2,39 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import api, { getAssetUrl } from '../services/api';
+import api, { getAssetUrl, actualizarEmpleado, actualizarPrivacidadPerfil } from '../services/api';
 import { toast } from 'react-hot-toast';
 import NotificationBell from '../components/NotificationBell';
 import logoSolo from '../assets/LogoSolo.png';
+
+const VALOR_OCULTO = '••••••••';
+
+const datoOculto = (valor) => valor === VALOR_OCULTO;
+
+const CampoPerfil = ({ etiqueta, valor, campoPrivacidad, esPropioPerfil, preferencias, guardando, onToggle }) => {
+  const visible = preferencias?.[campoPrivacidad] === true;
+  return (
+    <div>
+      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">{etiqueta}</span>
+      <p className={`text-base font-medium ${datoOculto(valor) ? 'text-on-surface-variant italic' : 'text-on-surface'}`}>
+        {datoOculto(valor) ? 'Oculto por el colaborador' : (valor || 'No registrado')}
+      </p>
+      {esPropioPerfil && campoPrivacidad && (
+        <button
+          type="button"
+          onClick={() => onToggle(campoPrivacidad)}
+          disabled={guardando === campoPrivacidad}
+          className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline disabled:opacity-60 cursor-pointer disabled:cursor-wait"
+          aria-pressed={visible}
+          aria-label={`${visible ? 'Ocultar' : 'Mostrar'} ${etiqueta.toLowerCase()} a otros colaboradores`}
+        >
+          <span className="material-symbols-outlined text-[15px]">{visible ? 'visibility' : 'visibility_off'}</span>
+          {guardando === campoPrivacidad ? 'Guardando…' : (visible ? 'Visible para otros · Ocultar' : 'Oculto para otros · Mostrar')}
+        </button>
+      )}
+    </div>
+  );
+};
 
 const PerfilEmpleado = () => {
   const { user, setUser, logout } = useAuth();
@@ -16,6 +45,9 @@ const PerfilEmpleado = () => {
   const [error, setError] = useState('');
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [guardandoPrivacidad, setGuardandoPrivacidad] = useState('');
+  const esAdmin = Number(user?.rol_id) === 1;
+  const esPropioPerfil = !id || (profile && Number(profile.usuario_id) === Number(user?.id));
 
   // Estados para modal de edición
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,6 +56,7 @@ const PerfilEmpleado = () => {
   const [editContactoEmergencia, setEditContactoEmergencia] = useState('');
   const [editParentesco, setEditParentesco] = useState('');
   const [editTelefonoEmergencia, setEditTelefonoEmergencia] = useState('');
+  const [editDireccion, setEditDireccion] = useState('');
   const [editNombres, setEditNombres] = useState('');
   const [editApellidos, setEditApellidos] = useState('');
   const [editDocumentoIdentidad, setEditDocumentoIdentidad] = useState('');
@@ -59,7 +92,9 @@ const PerfilEmpleado = () => {
       try {
         const url = id ? `/empleados/perfil/${id}` : '/empleados/perfil';
         const response = await api.get(url);
-        setProfile(response.data.perfil);
+        const loadedProfile = response.data.perfil;
+        setProfile(loadedProfile);
+        if (!id || Number(loadedProfile.usuario_id) === Number(user?.id)) fetchMisSolicitudes();
       } catch (err) {
         console.error(err);
         setError('No se pudo cargar la información de perfil.');
@@ -68,8 +103,32 @@ const PerfilEmpleado = () => {
       }
     };
     fetchProfile();
-    fetchMisSolicitudes();
-  }, [id]);
+  }, [id, user?.id]);
+
+  const handlePrivacyToggle = async (field) => {
+    if (!esPropioPerfil || guardandoPrivacidad) return;
+    const currentValue = profile?.privacidad_perfil?.[field] === true;
+    setGuardandoPrivacidad(field);
+    try {
+      const response = await actualizarPrivacidadPerfil({ [field]: !currentValue });
+      setProfile((previous) => ({
+        ...previous,
+        privacidad_perfil: response.privacidad_perfil,
+      }));
+      setUser((previous) => previous ? ({
+        ...previous,
+        profile: previous.profile ? {
+          ...previous.profile,
+          privacidad_perfil: response.privacidad_perfil,
+        } : previous.profile,
+      }) : previous);
+      toast.success(!currentValue ? 'Este dato ahora es visible para otros colaboradores.' : 'Este dato ahora está oculto para otros colaboradores.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'No se pudo actualizar la privacidad del perfil.');
+    } finally {
+      setGuardandoPrivacidad('');
+    }
+  };
 
   const handleCrearSolicitud = async (e) => {
     e.preventDefault();
@@ -116,12 +175,6 @@ const PerfilEmpleado = () => {
   const handleDescargarCertificado = async () => {
     if (downloading) return;
 
-    // Verificar límite mensual en frontend antes de hacer la petición
-    if (user?.rol_id !== 1 && profile?.descargas_mes_actual >= 2) {
-      toast.error('Has alcanzado el límite máximo de 2 descargas de certificación laboral para este mes.');
-      return;
-    }
-
     setDownloading(true);
     setError('');
 
@@ -147,7 +200,6 @@ const PerfilEmpleado = () => {
       window.URL.revokeObjectURL(downloadUrl);
 
       toast.success('Certificación laboral descargada con éxito.');
-      setProfile(prev => prev ? { ...prev, descargas_mes_actual: (prev.descargas_mes_actual || 0) + 1 } : prev);
     } catch (err) {
       console.error(err);
       let errorMsg = 'Error al generar la certificación laboral en PDF.';
@@ -228,6 +280,7 @@ const PerfilEmpleado = () => {
     setEditContactoEmergencia(profile?.contacto_emergencia || '');
     setEditParentesco(profile?.parentesco || '');
     setEditTelefonoEmergencia(profile?.telefono_emergencia || '');
+    setEditDireccion(profile?.direccion || '');
     setEditNombres(profile?.nombres || '');
     setEditApellidos(profile?.apellidos || '');
     setEditDocumentoIdentidad(profile?.documento_identidad || '');
@@ -250,7 +303,7 @@ const PerfilEmpleado = () => {
       if (selectedFile) {
         const formData = new FormData();
         formData.append('foto', selectedFile);
-        if (profile?.id) {
+        if (esAdmin && !esPropioPerfil && profile?.id) {
           formData.append('empleado_id', profile.id);
         }
 
@@ -261,45 +314,54 @@ const PerfilEmpleado = () => {
         });
         nuevaFoto = uploadRes.data.foto_perfil;
 
-        // Actualizar el contexto de autenticación en tiempo real
-        setUser(prev => ({
-          ...prev,
-          profile: {
-            ...prev.profile,
-            foto_perfil: nuevaFoto
-          }
-        }));
+        // Solo el perfil propio debe modificar el avatar global de la sesión.
+        if (esPropioPerfil) {
+          setUser(prev => ({
+            ...prev,
+            profile: {
+              ...prev.profile,
+              foto_perfil: nuevaFoto
+            }
+          }));
+        }
         setSelectedFile(null);
       }
 
       const payload = {
-        documento_identidad: editDocumentoIdentidad,
-        nombres: editNombres,
-        apellidos: editApellidos,
         telefono: editTelefono,
-        fecha_ingreso: profile?.fecha_ingreso,
-        fecha_terminacion: profile?.fecha_terminacion,
         habilidades: profile?.habilidades,
         fecha_info_personal: profile?.fecha_info_personal || new Date().toISOString(),
-        fecha_soportes: profile?.fecha_soportes,
-        fecha_seguridad: profile?.fecha_seguridad,
-        superior_inmediato: profile?.superior_inmediato,
-        departamento: profile?.departamento,
         tipo_genero: editTipoGenero,
         fecha_nacimiento: editFechaNacimiento || null,
         correo_personal: editCorreoPersonal,
         contacto_emergencia: editContactoEmergencia,
         parentesco: editParentesco,
-        telefono_emergencia: editTelefonoEmergencia
+        telefono_emergencia: editTelefonoEmergencia,
+        direccion: editDireccion,
       };
+      if (esAdmin) {
+        Object.assign(payload, {
+          documento_identidad: editDocumentoIdentidad,
+          nombres: editNombres,
+          apellidos: editApellidos,
+          fecha_ingreso: profile?.fecha_ingreso,
+          fecha_terminacion: profile?.fecha_terminacion,
+          fecha_soportes: profile?.fecha_soportes,
+          fecha_seguridad: profile?.fecha_seguridad,
+          superior_inmediato: profile?.superior_inmediato,
+          departamento: profile?.departamento,
+        });
+      }
 
       await actualizarEmpleado(profile.id, payload);
 
       setProfile({
         ...profile,
-        nombres: editNombres,
-        apellidos: editApellidos,
-        documento_identidad: editDocumentoIdentidad,
+        ...(esAdmin ? {
+          nombres: editNombres,
+          apellidos: editApellidos,
+          documento_identidad: editDocumentoIdentidad,
+        } : {}),
         tipo_genero: editTipoGenero,
         fecha_nacimiento: editFechaNacimiento,
         telefono: editTelefono,
@@ -308,6 +370,7 @@ const PerfilEmpleado = () => {
         contacto_emergencia: editContactoEmergencia,
         parentesco: editParentesco,
         telefono_emergencia: editTelefonoEmergencia,
+        direccion: editDireccion,
         fecha_info_personal: profile?.fecha_info_personal || new Date().toISOString()
       });
 
@@ -323,19 +386,33 @@ const PerfilEmpleado = () => {
     }
   };
 
-  const esPropioPerfil = (!id) || (profile && user && profile.usuario_id === user.id);
-  const esAdmin = user && user.rol_id === 1;
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-on-surface">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500 mx-auto"></div>
-          <p className="text-on-surface-variant text-sm">Cargando tu perfil laboral...</p>
+          <p className="text-on-surface-variant text-sm">Cargando el perfil laboral…</p>
         </div>
       </div>
     );
   }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-on-surface p-6">
+        <div className="max-w-md w-full bg-surface-container-lowest border border-outline-variant rounded-2xl p-8 text-center shadow-sm">
+          <span className="material-symbols-outlined text-5xl text-red-500 mb-3">person_off</span>
+          <h1 className="text-xl font-bold mb-2">No fue posible abrir el perfil</h1>
+          <p className="text-sm text-on-surface-variant mb-6">{error || 'El perfil no existe o no está disponible.'}</p>
+          <button onClick={() => navigate('/directorio')} className="px-5 py-2.5 rounded-xl bg-primary text-on-primary font-semibold cursor-pointer">
+            Volver al directorio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const esVistaPublica = !esPropioPerfil && !esAdmin;
 
   return (
     <div className="bg-background font-body-md text-on-surface antialiased min-h-screen flex flex-col transition-colors duration-200">
@@ -347,11 +424,11 @@ const PerfilEmpleado = () => {
             {esAdmin && (
               <Link className="flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1.5 rounded-lg text-sm font-bold transition-all" to="/dashboard">
                 <span className="material-symbols-outlined text-[18px]">dashboard</span>
-                <span>Panel Admin</span>
+                <span>Panel administrativo</span>
               </Link>
             )}
             <Link className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" to="/directorio">Directorio</Link>
-            <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Beneficios</a>
+            {!esAdmin && <Link className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" to="/recursos">Recursos</Link>}
             <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Capacitación</a>
             <a className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-semibold" href="#" onClick={manejarModuloEnDesarrollo}>Nómina</a>
           </nav>
@@ -361,7 +438,7 @@ const PerfilEmpleado = () => {
             className="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
             onClick={toggleTheme}
             aria-label={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
-            title={theme === 'light' ? 'Activar Modo Oscuro' : 'Activar Modo Claro'}
+              title={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
           >
             {theme === 'light' ? 'dark_mode' : 'light_mode'}
           </button>
@@ -371,17 +448,19 @@ const PerfilEmpleado = () => {
             aria-label="Ir a configuración"
             onClick={() => navigate('/configuracion')}
           >settings</button>
-          <div
+          <button
+            type="button"
             onClick={() => navigate('/perfil')}
             title="Ver mi perfil"
+            aria-label="Ver mi perfil"
             className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer hover:opacity-80 transition-opacity"
           >
-            <img
-              alt="Employee Profile Avatar"
+              <img
+                alt="Foto de mi perfil"
               className="w-full h-full object-cover"
               src={getAvatar(user?.profile)}
             />
-          </div>
+          </button>
         </div>
       </header>
 
@@ -401,7 +480,7 @@ const PerfilEmpleado = () => {
               className="flex items-center gap-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl px-4 py-2.5 transition-colors border border-emerald-500/20 mb-3 hover:bg-emerald-500/20"
             >
               <span className="material-symbols-outlined">dashboard</span>
-              <span className="font-label-caps text-label-caps">Panel Admin</span>
+              <span className="font-label-caps text-label-caps">Panel administrativo</span>
             </Link>
           )}
           <a className="flex items-center gap-3 bg-primary/10 text-primary font-semibold rounded-xl px-4 py-2 transition-colors" href="#">
@@ -420,13 +499,13 @@ const PerfilEmpleado = () => {
             <span className="material-symbols-outlined">trending_up</span>
             <span className="font-label-caps text-label-caps">Desempeño</span>
           </a>
-          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="#" onClick={manejarModuloEnDesarrollo}>
+          <Link className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" to="/configuracion">
             <span className="material-symbols-outlined">manage_accounts</span>
             <span className="font-label-caps text-label-caps">Ajustes</span>
-          </a>
+          </Link>
         </nav>
         <div className="mt-auto pt-4 border-t border-outline-variant space-y-1">
-          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="#">
+          <a className="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg" href="mailto:soporte@arrayanes.edu.co">
             <span className="material-symbols-outlined">help</span>
             <span className="font-label-caps text-label-caps">Soporte</span>
           </a>
@@ -435,7 +514,7 @@ const PerfilEmpleado = () => {
             className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors duration-200 rounded-lg cursor-pointer text-left focus:outline-none"
           >
             <span className="material-symbols-outlined">logout</span>
-            <span className="font-label-caps text-label-caps">Cerrar Sesión</span>
+              <span className="font-label-caps text-label-caps">Cerrar sesión</span>
           </button>
         </div>
       </aside>
@@ -450,7 +529,7 @@ const PerfilEmpleado = () => {
               className="flex items-center gap-1.5 text-xs text-primary hover:opacity-85 font-bold mb-6 transition-all cursor-pointer"
             >
               <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-              Volver al Directorio
+              Volver al directorio
             </button>
           )}
 
@@ -482,7 +561,8 @@ const PerfilEmpleado = () => {
                     {profile?.nombres} {profile?.apellidos}
                   </h1>
                   <p className="text-sm text-on-surface-variant font-medium">
-                    {profile?.cargo || 'Colaborador Institucional'} • {profile?.correo}
+                    {profile?.cargo || 'Colaborador institucional'}
+                    {profile?.correo && !datoOculto(profile.correo) ? ` • ${profile.correo}` : ''}
                   </p>
                 </div>
               </div>
@@ -493,7 +573,7 @@ const PerfilEmpleado = () => {
                     className="flex items-center gap-2 px-4 py-2 border border-outline-variant hover:bg-surface-container rounded-xl text-on-surface font-label-caps text-label-caps transition-all cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[18px]">edit</span>
-                    <span>Editar Perfil</span>
+                    <span>Editar perfil</span>
                   </button>
                 </div>
               )}
@@ -510,23 +590,38 @@ const PerfilEmpleado = () => {
               <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
                 <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">Apartment</span>
-                  <h2>Información Laboral</h2>
+                  <h2>Información Institucional</h2>
                 </div>
+
+                {esVistaPublica && (
+                  <div className="mb-6 flex gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-on-surface-variant">
+                    <span className="material-symbols-outlined text-primary">shield_lock</span>
+                    <p>La información salarial, contractual y las fechas de vinculación están protegidas. Solo Gestión Humana puede consultarlas.</p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de Contratación</span>
-                    <p className="text-base text-on-surface font-medium">
-                      {profile?.fecha_ingreso ? new Date(profile.fecha_ingreso).toLocaleDateString('es-CO', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      }) : 'No registrado'}
-                    </p>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Cargo</span>
+                    <p className="text-base text-on-surface font-medium">{profile?.cargo || 'Sin asignar'}</p>
                   </div>
 
+                  {!esVistaPublica && (
+                    <div>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de contratación</span>
+                      <p className="text-base text-on-surface font-medium">
+                        {profile?.fecha_ingreso ? new Date(profile.fecha_ingreso).toLocaleDateString('es-CO', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        }) : 'No registrado'}
+                      </p>
+                    </div>
+                  )}
+
+                  {esAdmin && <>
                   <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de Terminación</span>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de terminación</span>
                     <p className="text-base text-on-surface font-medium">
                       {(profile?.contrato_fecha_fin || profile?.fecha_terminacion) ? (() => {
                         const dateStr = profile.contrato_fecha_fin || profile.fecha_terminacion;
@@ -541,7 +636,7 @@ const PerfilEmpleado = () => {
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Tipo de Contrato</span>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Tipo de contrato</span>
                     <p className="text-base text-on-surface font-medium">
                       {profile?.tipo_contrato || 'Sin asignar'}
                     </p>
@@ -553,6 +648,7 @@ const PerfilEmpleado = () => {
                       {getFormatoMoneda(profile?.salario)}
                     </p>
                   </div>
+                  </>}
 
 
                   <div>
@@ -563,7 +659,7 @@ const PerfilEmpleado = () => {
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Superior Inmediato</span>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Superior inmediato</span>
                     <p className="text-base text-on-surface font-medium">
                       {profile?.superior_inmediato || 'No registrado'}
                     </p>
@@ -575,64 +671,96 @@ const PerfilEmpleado = () => {
               <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
                 <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">inbox_text_person</span>
-                  <h2>Información Personal</h2>
+                  <h2>Información personal</h2>
                 </div>
+
+                {esPropioPerfil && (
+                  <p className="text-sm text-on-surface-variant mb-6">
+                    Tú decides qué datos pueden consultar otros colaboradores. Los cambios se guardan de inmediato.
+                  </p>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Nombre Completo</span>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Nombre completo</span>
                     <p className="text-base text-on-surface font-medium">
                       {profile?.nombres} {profile?.apellidos}
                     </p>
+                    <p className="mt-2 text-[11px] text-on-surface-variant">Visible en el directorio institucional.</p>
                   </div>
 
-                  <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Documento de Identidad</span>
-                    <p className="text-base text-on-surface font-medium">
-                      {profile?.documento_identidad || 'No registrado'}
-                    </p>
-                  </div>
+                  {!esVistaPublica && (
+                    <div>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Documento de identidad</span>
+                      <p className="text-base text-on-surface font-medium">{profile?.documento_identidad || 'No registrado'}</p>
+                      {esPropioPerfil && <p className="mt-2 text-[11px] text-on-surface-variant">Siempre privado para otros colaboradores.</p>}
+                    </div>
+                  )}
 
-                  <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Género</span>
-                    <p className="text-base text-on-surface font-medium">
-                      {profile?.tipo_genero || 'Sin asignar'}
-                    </p>
-                  </div>
+                  <CampoPerfil
+                    etiqueta="Género"
+                    valor={profile?.tipo_genero}
+                    campoPrivacidad="tipo_genero"
+                    esPropioPerfil={esPropioPerfil}
+                    preferencias={profile?.privacidad_perfil}
+                    guardando={guardandoPrivacidad}
+                    onToggle={handlePrivacyToggle}
+                  />
 
-                  <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de Nacimiento</span>
-                    <p className="text-base text-on-surface font-medium">
-                      {profile?.fecha_nacimiento ? (
-                        typeof profile.fecha_nacimiento === 'string' && (profile.fecha_nacimiento.includes('•') || profile.fecha_nacimiento.includes('*'))
-                          ? profile.fecha_nacimiento
-                          : new Date(profile.fecha_nacimiento.includes('T') ? profile.fecha_nacimiento : profile.fecha_nacimiento + 'T12:00:00').toLocaleDateString('es-CO', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })
-                      ) : 'No registrado'}
-                    </p>
-                  </div>
+                  <CampoPerfil
+                    etiqueta="Fecha de nacimiento"
+                    valor={datoOculto(profile?.fecha_nacimiento) ? VALOR_OCULTO : (profile?.fecha_nacimiento ? new Date(profile.fecha_nacimiento.includes('T') ? profile.fecha_nacimiento : `${profile.fecha_nacimiento}T12:00:00`).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' }) : '')}
+                    campoPrivacidad="fecha_nacimiento"
+                    esPropioPerfil={esPropioPerfil}
+                    preferencias={profile?.privacidad_perfil}
+                    guardando={guardandoPrivacidad}
+                    onToggle={handlePrivacyToggle}
+                  />
 
-                  <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Correo Personal</span>
-                    <p className="text-base text-on-surface font-medium">
-                      {profile?.correo_personal || 'No registrado'}
-                    </p>
-                  </div>
+                  <CampoPerfil
+                    etiqueta="Correo institucional"
+                    valor={profile?.correo}
+                    campoPrivacidad="correo"
+                    esPropioPerfil={esPropioPerfil}
+                    preferencias={profile?.privacidad_perfil}
+                    guardando={guardandoPrivacidad}
+                    onToggle={handlePrivacyToggle}
+                  />
 
-                  <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Teléfono de Contacto</span>
-                    <p className="text-base text-on-surface font-medium">
-                      {profile?.telefono || 'No registrado'}
-                    </p>
-                  </div>
+                  <CampoPerfil
+                    etiqueta="Correo personal"
+                    valor={profile?.correo_personal}
+                    campoPrivacidad="correo_personal"
+                    esPropioPerfil={esPropioPerfil}
+                    preferencias={profile?.privacidad_perfil}
+                    guardando={guardandoPrivacidad}
+                    onToggle={handlePrivacyToggle}
+                  />
+
+                  <CampoPerfil
+                    etiqueta="Teléfono de contacto"
+                    valor={profile?.telefono}
+                    campoPrivacidad="telefono"
+                    esPropioPerfil={esPropioPerfil}
+                    preferencias={profile?.privacidad_perfil}
+                    guardando={guardandoPrivacidad}
+                    onToggle={handlePrivacyToggle}
+                  />
+
+                  <CampoPerfil
+                    etiqueta="Dirección"
+                    valor={profile?.direccion}
+                    campoPrivacidad="direccion"
+                    esPropioPerfil={esPropioPerfil}
+                    preferencias={profile?.privacidad_perfil}
+                    guardando={guardandoPrivacidad}
+                    onToggle={handlePrivacyToggle}
+                  />
                 </div>
               </div>
 
               {/* Contacto de Emergencia */}
-              <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
+              {!esVistaPublica && <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
                 <div className="flex items-center gap-3 text-on-surface text-lg font-semibold mb-6">
                   <span className="material-symbols-outlined text-primary text-xl">siren</span>
                   <h2>Contacto de Emergencia</h2>
@@ -640,7 +768,7 @@ const PerfilEmpleado = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Nombre Completo</span>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Nombre completo</span>
                     <p className="text-base text-on-surface font-medium">
                       {profile?.contacto_emergencia || 'No registrado'}
                     </p>
@@ -654,13 +782,14 @@ const PerfilEmpleado = () => {
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Teléfono de Contacto</span>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Teléfono de contacto</span>
                     <p className="text-base text-on-surface font-medium">
                       {profile?.telefono_emergencia || 'No registrado'}
                     </p>
                   </div>
                 </div>
-              </div>
+                {esPropioPerfil && <p className="mt-5 text-[11px] text-on-surface-variant">Esta información es confidencial y nunca se comparte en perfiles públicos.</p>}
+              </div>}
 
               {/* Habilidades */}
               <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-outline-variant/60">
@@ -669,7 +798,9 @@ const PerfilEmpleado = () => {
                   <h2>Habilidades</h2>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {profile?.habilidades && profile.habilidades.length > 0 ? (
+                  {datoOculto(profile?.habilidades) ? (
+                    <span className="text-sm text-on-surface-variant italic">Oculto por el colaborador</span>
+                  ) : Array.isArray(profile?.habilidades) && profile.habilidades.length > 0 ? (
                     profile.habilidades.map((hab, index) => (
                       <span key={index} className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps hover:scale-105 transition-transform cursor-default">
                         {hab}
@@ -679,6 +810,17 @@ const PerfilEmpleado = () => {
                     <span className="text-sm text-outline italic">Sin habilidades registradas</span>
                   )}
                 </div>
+                {esPropioPerfil && (
+                  <button
+                    type="button"
+                    onClick={() => handlePrivacyToggle('habilidades')}
+                    disabled={guardandoPrivacidad === 'habilidades'}
+                    className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline disabled:opacity-60 cursor-pointer disabled:cursor-wait"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">{profile?.privacidad_perfil?.habilidades ? 'visibility' : 'visibility_off'}</span>
+                    {guardandoPrivacidad === 'habilidades' ? 'Guardando…' : (profile?.privacidad_perfil?.habilidades ? 'Visible para otros · Ocultar' : 'Oculto para otros · Mostrar')}
+                  </button>
+                )}
               </div>
 
             </div>
@@ -698,7 +840,7 @@ const PerfilEmpleado = () => {
                     <div className="space-y-2">
                       <button
                         onClick={handleDescargarCertificado}
-                        disabled={downloading || (user?.rol_id !== 1 && profile?.descargas_mes_actual >= 2)}
+                        disabled={downloading}
                         className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-400 text-white text-sm font-medium py-2.5 px-4 rounded-lg shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-3"
                       >
                         {downloading ? (
@@ -713,14 +855,6 @@ const PerfilEmpleado = () => {
                           </>
                         )}
                       </button>
-                      {user?.rol_id !== 1 && (
-                        <div className="flex justify-between items-center px-1 text-xs text-slate-500">
-                          <span>Descargas este mes:</span>
-                          <span className={`font-semibold ${profile?.descargas_mes_actual >= 2 ? 'text-red-500 font-bold' : 'text-emerald-700'}`}>
-                            {profile?.descargas_mes_actual ?? 0} de {profile?.max_descargas_mes ?? 2} usadas
-                          </span>
-                        </div>
-                      )}
                     </div>
 
                     <button
@@ -737,11 +871,6 @@ const PerfilEmpleado = () => {
                     <button onClick={manejarModuloEnDesarrollo} className="w-full bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant text-sm font-semibold py-2.5 px-4 rounded-lg border border-outline-variant transition-all cursor-pointer flex items-center gap-3">
                       <span className="material-symbols-outlined text-on-surface-variant">receipt_long</span>
                       <span>Ver Desprendibles de Pago</span>
-                    </button>
-
-                    <button onClick={manejarModuloEnDesarrollo} className="w-full bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant text-sm font-semibold py-2.5 px-4 rounded-lg border border-outline-variant transition-all cursor-pointer flex items-center gap-3">
-                      <span className="material-symbols-outlined text-on-surface-variant">event_available</span>
-                      <span>Solicitar Vacaciones</span>
                     </button>
                   </div>
                 </div>
@@ -789,10 +918,10 @@ const PerfilEmpleado = () => {
                 </div>
               )}
 
-              {/* Progress Stepper */}
-              <div className="bg-surface-container-lowest rounded-2xl p-8 border border-outline-variant">
+              {/* Estado interno de actualización: no se publica a otros colaboradores. */}
+              {!esVistaPublica && <div className="bg-surface-container-lowest rounded-2xl p-8 border border-outline-variant">
                 <h3 className="font-label-caps text-label-caps text-on-surface-variant mb-6 uppercase tracking-widest">
-                  Actualización de Datos 2024
+                  Estado de actualización
                 </h3>
 
                 <div className="space-y-6">
@@ -810,7 +939,7 @@ const PerfilEmpleado = () => {
                       <div className={`w-0.5 h-full ${profile?.fecha_info_personal ? 'bg-surface-tint' : 'bg-outline-variant'}`}></div>
                     </div>
                     <div className="pb-4">
-                      <p className={`font-label-caps text-label-caps ${profile?.fecha_info_personal ? 'text-primary' : 'text-on-surface-variant'}`}>Información Personal</p>
+                      <p className={`font-label-caps text-label-caps ${profile?.fecha_info_personal ? 'text-primary' : 'text-on-surface-variant'}`}>Información personal</p>
                       <p className="text-[12px] text-on-surface-variant">
                         {profile?.fecha_info_personal ? `Completado el ${getFechaFormateadaStepper(profile.fecha_info_personal)}` : 'Pendiente'}
                       </p>
@@ -831,7 +960,7 @@ const PerfilEmpleado = () => {
                       <div className={`w-0.5 h-full ${profile?.fecha_soportes ? 'bg-surface-tint' : 'bg-outline-variant'}`}></div>
                     </div>
                     <div className="pb-4">
-                      <p className={`font-label-caps text-label-caps ${profile?.fecha_soportes ? 'text-primary' : 'text-on-surface-variant'}`}>Soportes Académicos</p>
+                      <p className={`font-label-caps text-label-caps ${profile?.fecha_soportes ? 'text-primary' : 'text-on-surface-variant'}`}>Soportes académicos</p>
                       <p className="text-[12px] text-on-surface-variant">
                         {profile?.fecha_soportes ? `Completado el ${getFechaFormateadaStepper(profile.fecha_soportes)}` : 'Pendiente'}
                       </p>
@@ -852,14 +981,14 @@ const PerfilEmpleado = () => {
                       <div className="w-0.5 h-full bg-outline-variant opacity-30"></div>
                     </div>
                     <div className="pb-4">
-                      <p className={`font-label-caps text-label-caps ${profile?.fecha_seguridad ? 'text-primary' : 'text-on-surface'}`}>Validación de Seguridad</p>
+                      <p className={`font-label-caps text-label-caps ${profile?.fecha_seguridad ? 'text-primary' : 'text-on-surface'}`}>Validación de seguridad</p>
                       <p className="text-[12px] text-on-surface-variant">
                         {profile?.fecha_seguridad ? `Completado el ${getFechaFormateadaStepper(profile.fecha_seguridad)}` : 'Pendiente'}
                       </p>
                     </div>
                   </div>
                 </div>
-              </div>
+              </div>}
 
             </aside>
           </div>
@@ -870,10 +999,11 @@ const PerfilEmpleado = () => {
               <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
-                    Editar Datos del Colaborador
+                    Editar datos del colaborador
                   </h3>
                   <button
                     onClick={() => setIsModalOpen(false)}
+                    aria-label="Cerrar ventana de edición"
                     className="material-symbols-outlined text-on-surface-variant p-1 hover:bg-surface-container rounded-full transition-colors cursor-pointer"
                   >
                     close
@@ -887,7 +1017,8 @@ const PerfilEmpleado = () => {
                     </div>
                   )}
 
-                  {/* Datos Personales Básicos */}
+                  {/* Los nombres y el documento solo los administra Gestión Humana. */}
+                  {esAdmin && <>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label htmlFor="nombres" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
@@ -921,7 +1052,7 @@ const PerfilEmpleado = () => {
 
                   <div className="space-y-1">
                     <label htmlFor="documento_identidad" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                      Documento de Identidad
+                      Documento de identidad
                     </label>
                     <input
                       id="documento_identidad"
@@ -933,6 +1064,7 @@ const PerfilEmpleado = () => {
                       required
                     />
                   </div>
+                  </>}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
@@ -953,7 +1085,7 @@ const PerfilEmpleado = () => {
                     </div>
                     <div className="space-y-1">
                       <label htmlFor="fecha_nacimiento" className="block font-label-caps text-label-caps text-on-surface-variant uppercase text-xs">
-                        Fecha de Nacimiento
+                        Fecha de nacimiento
                       </label>
                       <input
                         id="fecha_nacimiento"
@@ -982,7 +1114,7 @@ const PerfilEmpleado = () => {
 
                   <div className="space-y-1">
                     <label htmlFor="correo_personal" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                      Correo Personal
+                      Correo personal
                     </label>
                     <input
                       id="correo_personal"
@@ -994,13 +1126,27 @@ const PerfilEmpleado = () => {
                     />
                   </div>
 
+                  <div className="space-y-1">
+                    <label htmlFor="direccion" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
+                      Dirección
+                    </label>
+                    <input
+                      id="direccion"
+                      type="text"
+                      value={editDireccion}
+                      onChange={(e) => setEditDireccion(e.target.value)}
+                      placeholder="Dirección de residencia"
+                      className="w-full bg-surface-container-low border border-outline rounded-lg px-3 py-2 text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm"
+                    />
+                  </div>
+
                   <div className="border-t border-outline-variant pt-2 space-y-2">
-                    <h4 className="font-bold text-xs text-primary uppercase">Contacto de Emergencia</h4>
+                    <h4 className="font-bold text-xs text-primary uppercase">Contacto de emergencia</h4>
 
                     <div className="space-y-2">
                       <div className="space-y-1">
                         <label htmlFor="contacto_emergencia" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                          Nombre Completo
+                          Nombre completo
                         </label>
                         <input
                           id="contacto_emergencia"
@@ -1028,7 +1174,7 @@ const PerfilEmpleado = () => {
 
                       <div className="space-y-1">
                         <label htmlFor="telefono_emergencia" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                          Teléfono de Emergencia
+                          Teléfono de emergencia
                         </label>
                         <input
                           id="telefono_emergencia"
@@ -1044,7 +1190,7 @@ const PerfilEmpleado = () => {
 
                   <div className="space-y-1 pt-2">
                     <label htmlFor="foto" className="block font-label-caps text-label-caps text-on-surface-variant uppercase">
-                      Foto de Perfil
+                      Foto de perfil
                     </label>
                     <input
                       id="foto"
@@ -1072,10 +1218,10 @@ const PerfilEmpleado = () => {
                       {submittingEdit ? (
                         <>
                           <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
-                          <span>Guardando...</span>
+                          <span>Guardando…</span>
                         </>
                       ) : (
-                        <span>Guardar Cambios</span>
+                        <span>Guardar cambios</span>
                       )}
                     </button>
                   </div>

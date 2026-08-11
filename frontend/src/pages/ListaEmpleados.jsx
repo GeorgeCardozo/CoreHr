@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { obtenerEmpleados, actualizarEmpleado, eliminarEmpleado, crearEmpleadosMasivo, getAssetUrl, subirFotoPerfil } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
-import * as XLSX from 'xlsx';
 
 const ListaEmpleados = () => {
   const [empleados, setEmpleados] = useState([]);
@@ -19,22 +18,42 @@ const ListaEmpleados = () => {
   const [bulkResult, setBulkResult] = useState(null);
 
   const parseCSV = (text) => {
-    const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-    if (lines.length <= 1) return [];
-
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-    const data = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      if (values.length < headers.length) continue;
-      
-      const row = {};
-      headers.forEach((header, index) => {
-        row[header] = values[index] || '';
-      });
-      data.push(row);
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    const source = String(text || '').replace(/^\uFEFF/, '');
+    for (let index = 0; index < source.length; index += 1) {
+      const character = source[index];
+      const next = source[index + 1];
+      if (character === '"' && inQuotes && next === '"') {
+        field += '"';
+        index += 1;
+      } else if (character === '"') {
+        inQuotes = !inQuotes;
+      } else if (character === ',' && !inQuotes) {
+        row.push(field.trim());
+        field = '';
+      } else if ((character === '\n' || character === '\r') && !inQuotes) {
+        if (character === '\r' && next === '\n') index += 1;
+        row.push(field.trim());
+        if (row.some(Boolean)) rows.push(row);
+        row = [];
+        field = '';
+      } else {
+        field += character;
+      }
     }
-    return data;
+    row.push(field.trim());
+    if (row.some(Boolean)) rows.push(row);
+    if (rows.length <= 1 || inQuotes) return [];
+
+    const headers = rows[0].map((header) => header.toLowerCase());
+    return rows.slice(1).filter((values) => values.length >= headers.length).map((values) => {
+      const item = {};
+      headers.forEach((header, index) => { item[header] = values[index] || ''; });
+      return item;
+    });
   };
 
   const handleBulkTextChange = (text) => {
@@ -46,6 +65,11 @@ const ListaEmpleados = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('El archivo CSV no puede superar 2 MB.');
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target.result;
@@ -86,58 +110,33 @@ const ListaEmpleados = () => {
     window.print();
   };
 
-  const handleExportExcel = () => {
+  const handleExportCsv = () => {
     try {
-      const dataToExport = (empleadosFiltrados.length > 0 ? empleadosFiltrados : empleados).map((emp) => ({
-        'Documento de Identidad': emp.documento_identidad || '',
-        'Nombres': emp.nombres || '',
-        'Apellidos': emp.apellidos || '',
-        'Correo Institucional': emp.correo || '',
-        'Cargo': emp.cargo || 'No registrado',
-        'Departamento': emp.departamento || 'No registrado',
-        'Teléfono': emp.telefono || '',
-        'Fecha de Ingreso': emp.fecha_ingreso ? new Date(emp.fecha_ingreso).toLocaleDateString('es-CO') : '',
-        'Estado Contrato': emp.tiene_contrato ? 'Con Contrato' : 'Sin Contrato',
-        'Correo Personal': emp.correo_personal || '',
-        'Género': emp.tipo_genero || '',
-        'Superior Inmediato': emp.superior_inmediato || '',
-        'Contacto Emergencia': emp.contacto_emergencia || '',
-        'Teléfono Emergencia': emp.telefono_emergencia || '',
-        'Parentesco': emp.parentesco || '',
-        'Habilidades': Array.isArray(emp.habilidades) ? emp.habilidades.join(', ') : (emp.habilidades || '')
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-      worksheet['!cols'] = [
-        { wch: 18 },
-        { wch: 22 },
-        { wch: 22 },
-        { wch: 30 },
-        { wch: 24 },
-        { wch: 22 },
-        { wch: 16 },
-        { wch: 16 },
-        { wch: 16 },
-        { wch: 30 },
-        { wch: 12 },
-        { wch: 24 },
-        { wch: 24 },
-        { wch: 18 },
-        { wch: 14 },
-        { wch: 30 }
-      ];
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Colaboradores');
-
+      const csvCell = (value) => {
+        const text = String(value ?? '');
+        const protectedText = /^[=+\-@]/.test(text.trimStart()) ? `'${text}` : text;
+        return `"${protectedText.replaceAll('"', '""')}"`;
+      };
+      const headers = ['Documento de identidad', 'Nombres', 'Apellidos', 'Correo institucional', 'Cargo', 'Departamento', 'Fecha de ingreso', 'Estado de contrato'];
+      const rows = (empleadosFiltrados.length > 0 ? empleadosFiltrados : empleados).map((emp) => [
+        emp.documento_identidad, emp.nombres, emp.apellidos, emp.correo, emp.cargo || 'No registrado',
+        emp.departamento || 'No registrado', emp.fecha_ingreso ? new Date(emp.fecha_ingreso).toLocaleDateString('es-CO') : '',
+        emp.tiene_contrato ? 'Con contrato' : 'Sin contrato',
+      ].map(csvCell).join(','));
+      const blob = new Blob([`\uFEFF${headers.map(csvCell).join(',')}\n${rows.join('\n')}`], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
-      XLSX.writeFile(workbook, `Reporte_Colaboradores_${dateStr}.xlsx`);
-
-      toast.success('Reporte Excel generado exitosamente.');
+      link.href = url;
+      link.download = `Reporte_Colaboradores_${dateStr}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Reporte CSV generado exitosamente.');
     } catch (err) {
-      console.error('Error al exportar Excel:', err);
-      toast.error('Error al generar el archivo Excel.');
+      console.error('Error al exportar CSV:', err);
+      toast.error('Error al generar el archivo CSV.');
     }
   };
 
@@ -251,19 +250,19 @@ const ListaEmpleados = () => {
   }, [location.search, empleados]);
 
   const handleDelete = async (id) => {
-    if (window.confirm('¿Está seguro de que desea eliminar a este colaborador? Esta acción también eliminará su cuenta de usuario y es irreversible.')) {
+    if (window.confirm('¿Deseas desactivar a este colaborador? Se conservará el historial, pero se bloqueará su acceso.')) {
       try {
         setError('');
         await eliminarEmpleado(id);
         setEmpleados((prev) => prev.filter((emp) => emp.id !== id));
       } catch (err) {
         console.error(err);
-        setError(err.response?.data?.message || 'Error al eliminar el colaborador.');
+        setError(err.response?.data?.message || 'Error al desactivar el colaborador.');
       }
     }
   };
 
-  const handleOpenEdit = (emp) => {
+  function handleOpenEdit(emp) {
     setSelectedEmpleado(emp);
     
     const formatDate = (dateStr) => {
@@ -300,7 +299,7 @@ const ListaEmpleados = () => {
     setEditPhotoFile(null);
     setEditPhotoPreview(emp.foto_perfil ? getAssetUrl(emp.foto_perfil) : null);
     setIsEditModalOpen(true);
-  };
+  }
 
   const handleEditPhotoChange = (e) => {
     const file = e.target.files[0];
@@ -406,7 +405,7 @@ const ListaEmpleados = () => {
               onClick={() => navigate('/dashboard')}
               className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 mb-2 transition-colors print:hidden"
             >
-              ← Volver al Dashboard
+              ← Volver al panel principal
             </button>
             {/* Cabecera exclusiva para impresión */}
             <div className="hidden print:block mb-8 text-center border-b border-slate-350 pb-4">
@@ -430,12 +429,12 @@ const ListaEmpleados = () => {
               <span>Imprimir PDF</span>
             </button>
             <button
-              onClick={handleExportExcel}
+              onClick={handleExportCsv}
               className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-semibold rounded-lg py-2.5 px-4 transition-all flex items-center gap-2 cursor-pointer text-xs"
-              title="Exportar listado de colaboradores a Excel (.xlsx)"
+              title="Exportar listado de colaboradores a CSV"
             >
               <span className="material-symbols-outlined text-[18px]">table_chart</span>
-              <span>Exportar Excel</span>
+              <span>Exportar CSV</span>
             </button>
             <button
               onClick={() => setIsBulkModalOpen(true)}
@@ -1061,9 +1060,9 @@ const ListaEmpleados = () => {
                     <p className="font-bold mb-1 text-primary">Instrucciones de formato:</p>
                     <p>La primera línea debe contener las cabeceras separadas por comas. Las siguientes líneas deben tener los datos correspondientes.</p>
                     <p className="font-mono mt-1 select-all bg-background p-1.5 rounded border border-outline-variant/30 overflow-x-auto">
-                      correo,documento_identidad,nombres,apellidos,telefono,departamento,tipo_genero,correo_personal
+                      correo,contrasena,documento_identidad,nombres,apellidos,telefono,departamento,tipo_genero,correo_personal
                     </p>
-                    <p className="mt-1">Si no se especifica una contraseña, se usará el documento de identidad por defecto.</p>
+                    <p className="mt-1">La contraseña temporal es obligatoria, debe tener mínimo 12 caracteres e incluir mayúscula, minúscula y número.</p>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">

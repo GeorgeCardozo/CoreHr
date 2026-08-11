@@ -149,13 +149,16 @@ const CrearEmpleado = () => {
               <input
                 id="contrasena"
                 name="contrasena"
-                type="text"
+                type="password"
                 required
-                placeholder="Contraseña de primer ingreso"
+                minLength="12"
+                autoComplete="new-password"
+                placeholder="Mínimo 12 caracteres, mayúscula y número"
                 className="w-full bg-background border border-outline-variant/60 rounded-lg py-2.5 px-4 text-on-surface placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 value={formData.contrasena}
                 onChange={handleChange}
               />
+              <p className="mt-1 text-xs text-on-surface-variant">Entrégala por un canal seguro; el sistema exigirá cambiarla en el primer acceso.</p>
             </div>
 
           </div>

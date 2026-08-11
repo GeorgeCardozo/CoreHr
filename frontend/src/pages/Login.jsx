@@ -123,7 +123,10 @@ const Login = () => {
                   <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase" htmlFor="password">
                     Contraseña
                   </label>
-                  <a className="font-label-caps text-label-caps text-tertiary-container hover:text-primary transition-colors" href="#">
+                  <a
+                    className="font-label-caps text-label-caps text-tertiary-container hover:text-primary transition-colors"
+                    href="mailto:soporte@arrayanes.edu.co?subject=Restablecimiento%20de%20contrase%C3%B1a%20CoreRRHH"
+                  >
                     ¿Olvidó su contraseña?
                   </a>
                 </div>

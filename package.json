@@ -7,6 +7,8 @@
     "init-db": "node backend/src/config/initDb.js",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
-    "build:frontend": "npm --prefix frontend run build"
+    "build:frontend": "npm --prefix frontend run build",
+    "test": "npm --prefix backend test && npm --prefix frontend run lint && npm --prefix frontend run build",
+    "audit:prod": "npm --prefix backend audit --omit=dev --audit-level=high && npm --prefix frontend audit --omit=dev --audit-level=high"
   }
 }

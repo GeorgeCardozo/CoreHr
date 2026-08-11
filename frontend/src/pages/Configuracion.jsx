@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { obtenerPerfil, actualizarEmpleado, subirFotoPerfil, getAssetUrl } from '../services/api';
 import { toast } from 'react-hot-toast';
+import CambiarContrasena from '../components/CambiarContrasena';
 
 const Configuracion = () => {
   const { user, setUser, logout } = useAuth();
@@ -27,6 +28,7 @@ const Configuracion = () => {
 
   // Tab activa de Ajustes
   const [activeTab, setActiveTab] = useState('Perfil');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   useEffect(() => {
     const fetchPerfil = async () => {
@@ -167,7 +169,7 @@ const Configuracion = () => {
   const activeUserName = user?.profile
     ? `${user.profile.nombres} ${user.profile.apellidos || ''}`
     : (user?.correo ? user.correo.split('@')[0] : 'Alex Rivera');
-  const activeUserRole = user?.profile?.cargo || 'Colaborador';
+  const activeUserRole = user?.profile?.cargo || (user?.rol_id === 1 ? 'Gestión Humana' : 'Colaborador');
   const activeUserAvatar = user?.profile?.foto_perfil
     ? getAssetUrl(user.profile.foto_perfil)
     : getAvatar();
@@ -191,7 +193,7 @@ const Configuracion = () => {
               <span>Perfil</span>
             </button>
             <button
-              onClick={manejarModuloEnDesarrollo}
+              onClick={() => setShowPasswordModal(true)}
               className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-bold cursor-pointer text-left"
             >
               <span className="material-symbols-outlined text-[18px]">security</span>
@@ -213,14 +215,14 @@ const Configuracion = () => {
             className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/70 hover:bg-surface-container/50 hover:text-on-surface rounded-xl transition-all text-xs font-bold cursor-pointer text-left"
           >
             <span className="material-symbols-outlined text-[18px]">help</span>
-            <span>Help Center</span>
+            <span>Centro de ayuda</span>
           </button>
           <button
             onClick={logout}
             className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant/75 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-all text-xs font-bold cursor-pointer text-left"
           >
             <span className="material-symbols-outlined text-[18px]">logout</span>
-            <span>Logout</span>
+            <span>Cerrar sesión</span>
           </button>
         </div>
       </div>
@@ -228,7 +230,7 @@ const Configuracion = () => {
       {/* Panel de Contenido Principal de Ajustes */}
       <div className="md:col-span-3 space-y-6">
         <div>
-          <h2 className="text-2xl font-extrabold text-on-surface tracking-tight">Configuración de Cuenta</h2>
+          <h2 className="text-2xl font-extrabold text-on-surface tracking-tight">Configuración de cuenta</h2>
           <p className="text-on-surface-variant text-xs mt-1">Gestiona tu información personal y preferencias de seguridad para mantener tu perfil actualizado.</p>
         </div>
 
@@ -427,7 +429,7 @@ const Configuracion = () => {
               </div>
               <div className="w-9 h-9 rounded-full bg-surface-container overflow-hidden ring-2 ring-outline-variant">
                 <img 
-                  alt="Current user avatar" 
+                  alt="Foto del usuario actual"
                   className="w-full h-full object-cover" 
                   src={activeUserAvatar} 
                 />
@@ -441,6 +443,9 @@ const Configuracion = () => {
       <main className="pt-24 pb-16 px-8 flex-1 max-w-7xl w-full mx-auto">
         {pageContent}
       </main>
+      {showPasswordModal && (
+        <CambiarContrasena onClose={() => setShowPasswordModal(false)} />
+      )}
     </div>
   );
 };

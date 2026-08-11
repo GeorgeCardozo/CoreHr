@@ -1,211 +1,165 @@
 const db = require('../config/db');
+const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
 
-const validarContrato = ({ empleado_id, tipo_contrato, fecha_inicio, fecha_fin, salario, estado }) => {
+const ACTIVE = 'Activo';
+const INACTIVE = 'Inactivo';
+
+const validarContrato = ({ empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado }) => {
   const employeeId = Number(empleado_id);
   const salary = Number(salario);
-  const normalizedState = estado || 'Activo';
+  const contractType = String(tipo_contrato || '').trim();
+  const jobTitle = cargo === undefined || cargo === null ? null : String(cargo).trim();
+  const normalizedState = estado || ACTIVE;
 
-  if (!Number.isInteger(employeeId) || employeeId <= 0 || !tipo_contrato || !fecha_inicio) {
-    return { message: 'Se requieren un empleado válido, tipo de contrato y fecha de inicio.' };
+  if (!Number.isInteger(employeeId) || employeeId <= 0 || !contractType || !isValidIsoDate(fecha_inicio)) {
+    return { message: 'Se requieren un empleado válido, tipo de contrato y fecha de inicio válida.' };
   }
-  if (!Number.isFinite(salary) || salary < 0) {
-    return { message: 'El salario debe ser un número mayor o igual a cero.' };
+  if (contractType.length > 100 || jobTitle?.length > 100) {
+    return { message: 'El tipo de contrato o cargo supera la longitud permitida.' };
   }
-  if (!['Activo', 'Inactivo'].includes(normalizedState)) {
-    return { message: 'El estado del contrato no es válido.' };
-  }
-  if (fecha_fin && new Date(`${fecha_fin}T00:00:00`) < new Date(`${fecha_inicio}T00:00:00`)) {
+  if (fecha_fin && !isDateRangeValid(fecha_inicio, fecha_fin)) {
     return { message: 'La fecha de finalización no puede ser anterior a la fecha de inicio.' };
   }
+  if (!Number.isFinite(salary) || salary < 0 || salary > 9999999999.99) {
+    return { message: 'El salario debe ser un número entre 0 y 9.999.999.999,99.' };
+  }
+  if (![ACTIVE, INACTIVE].includes(normalizedState)) {
+    return { message: 'El estado del contrato no es válido.' };
+  }
 
-  return { employeeId, salary, state: normalizedState };
+  return { employeeId, salary, contractType, jobTitle: jobTitle || null, state: normalizedState };
+};
+
+const validateActiveContract = async (client, employeeId, startDate, excludedId = null) => {
+  const result = await client.query(
+    `SELECT id, fecha_inicio, fecha_fin FROM contratos
+     WHERE empleado_id = $1 AND estado = $2 ${excludedId ? 'AND id <> $3' : ''}
+     ORDER BY id DESC LIMIT 1`,
+    excludedId ? [employeeId, ACTIVE, excludedId] : [employeeId, ACTIVE]
+  );
+  const activeContract = result.rows[0];
+  if (!activeContract) return null;
+  if (!activeContract.fecha_fin) {
+    return 'El empleado ya tiene un contrato activo indefinido. Debe finalizarse o desactivarse antes de asignar uno nuevo.';
+  }
+  if (startDate <= String(activeContract.fecha_fin).slice(0, 10)) {
+    return `El empleado tiene un contrato activo que finaliza el ${String(activeContract.fecha_fin).slice(0, 10)}. El nuevo contrato debe iniciar después de esa fecha.`;
+  }
+  return null;
 };
 
 const crearContrato = async (req, res) => {
-  const { empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado } = req.body;
-
-  const validation = validarContrato(req.body);
-  if (validation.message) {
-    return res.status(400).json({ message: validation.message });
-  }
-  const { employeeId, salary, state } = validation;
+  const validation = validarContrato(req.body || {});
+  if (validation.message) return res.status(400).json({ message: validation.message });
+  const { employeeId, salary, contractType, jobTitle, state } = validation;
+  const { fecha_inicio, fecha_fin } = req.body;
+  const client = await db.pool.connect();
 
   try {
-    const esActivo = state === 'Activo';
-
-    if (esActivo) {
-      // Buscar contratos activos existentes para este empleado
-      const existingRes = await db.query(
-        `SELECT id, fecha_inicio, fecha_fin FROM contratos
-         WHERE empleado_id = $1 AND estado = 'Activo'
-         LIMIT 1`,
-        [employeeId]
-      );
-
-      if (existingRes.rows.length > 0) {
-        const activeContract = existingRes.rows[0];
-
-        if (!activeContract.fecha_fin) {
-          return res.status(400).json({
-            message: 'El empleado ya tiene un contrato activo indefinido. Debe finalizarse o desactivarse antes de asignar uno nuevo.'
-          });
-        }
-
-        const finContratoActual = new Date(activeContract.fecha_fin);
-        const inicioNuevoContrato = new Date(fecha_inicio);
-
-        if (inicioNuevoContrato <= finContratoActual) {
-          const finFormateado = finContratoActual.toLocaleDateString('es-CO');
-          return res.status(400).json({
-            message: `El empleado tiene un contrato activo que finaliza el ${finFormateado}. El nuevo contrato debe iniciar después de esta fecha.`
-          });
-        }
+    await client.query('BEGIN');
+    const employee = await client.query('SELECT id FROM empleados WHERE id = $1 AND activo = TRUE FOR UPDATE', [employeeId]);
+    if (!employee.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'El empleado no existe o está inactivo.' });
+    }
+    if (state === ACTIVE) {
+      const conflict = await validateActiveContract(client, employeeId, fecha_inicio);
+      if (conflict) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ message: conflict });
       }
     }
-
-    const queryText = `
-      INSERT INTO contratos (empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `;
-    const values = [
-      employeeId,
-      tipo_contrato,
-      cargo || null,
-      fecha_inicio,
-      fecha_fin || null,
-      salary,
-      state
-    ];
-
-    const result = await db.query(queryText, values);
-    const nuevoContrato = result.rows[0];
-
-    return res.status(201).json({
-      message: 'Contrato creado exitosamente',
-      contrato: nuevoContrato
-    });
-
+    const result = await client.query(
+      `INSERT INTO contratos (empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [employeeId, contractType, jobTitle, fecha_inicio, fecha_fin || null, salary, state]
+    );
+    await client.query('COMMIT');
+    return res.status(201).json({ message: 'Contrato creado exitosamente.', contrato: result.rows[0] });
   } catch (error) {
-    console.error('Error en contratoController.crearContrato:', error);
-
-    if (error.code === '23503') {
-      return res.status(400).json({ message: 'El empleado_id especificado no existe' });
-    }
-
-    return res.status(500).json({ message: 'Error interno del servidor al crear contrato' });
+    await client.query('ROLLBACK');
+    if (error.code === '23505') return res.status(409).json({ message: 'Ya existe un contrato activo para este empleado.' });
+    console.error('Error en crearContrato:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al crear contrato.' });
+  } finally {
+    client.release();
   }
 };
 
 const obtenerContratos = async (req, res) => {
-  const { empleado_id, limit = 50, page = 1 } = req.query;
-  const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
-  const parsedPage = Math.max(parseInt(page) || 1, 1);
+  const employeeId = req.query.empleado_id ? Number(req.query.empleado_id) : null;
+  const parsedLimit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
+  const parsedPage = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
   const offset = (parsedPage - 1) * parsedLimit;
+  if (req.query.empleado_id && (!Number.isInteger(employeeId) || employeeId <= 0)) {
+    return res.status(400).json({ message: 'El empleado_id no es válido.' });
+  }
 
   try {
-    let result;
-    const queryText = `
-      SELECT c.*, e.nombres, e.apellidos, e.foto_perfil
-      FROM contratos c
-      JOIN empleados e ON c.empleado_id = e.id
-    `;
-
-    if (empleado_id) {
-      result = await db.query(`${queryText} WHERE c.empleado_id = $1 ORDER BY c.id DESC LIMIT $2 OFFSET $3`, [empleado_id, parsedLimit, offset]);
-    } else {
-      result = await db.query(`${queryText} ORDER BY c.id DESC LIMIT $1 OFFSET $2`, [parsedLimit, offset]);
-    }
-
+    const result = await db.query(
+      `SELECT c.*, e.nombres, e.apellidos, e.foto_perfil
+       FROM contratos c JOIN empleados e ON c.empleado_id = e.id
+       WHERE ($1::integer IS NULL OR c.empleado_id = $1)
+       ORDER BY c.id DESC LIMIT $2 OFFSET $3`,
+      [employeeId, parsedLimit, offset]
+    );
     return res.status(200).json({
-      message: 'Contratos obtenidos exitosamente',
+      message: 'Contratos obtenidos exitosamente.',
       contratos: result.rows,
-      pagination: { limit: parsedLimit, page: parsedPage }
+      pagination: { limit: parsedLimit, page: parsedPage },
     });
-
   } catch (error) {
-    console.error('Error en contratoController.obtenerContratos:', error);
-    return res.status(500).json({ message: 'Error interno del servidor al obtener contratos' });
+    console.error('Error en obtenerContratos:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al obtener contratos.' });
   }
 };
 
 const actualizarContrato = async (req, res) => {
-  const { id } = req.params;
-  const { empleado_id, tipo_contrato, cargo, fecha_inicio, fecha_fin, salario, estado } = req.body;
-
-  const validation = validarContrato(req.body);
-  if (validation.message) {
-    return res.status(400).json({ message: validation.message });
+  const contractId = Number(req.params.id);
+  if (!Number.isInteger(contractId) || contractId <= 0) {
+    return res.status(400).json({ message: 'El identificador del contrato no es válido.' });
   }
-  const { employeeId, salary, state } = validation;
+  const validation = validarContrato(req.body || {});
+  if (validation.message) return res.status(400).json({ message: validation.message });
+  const { employeeId, salary, contractType, jobTitle, state } = validation;
+  const { fecha_inicio, fecha_fin } = req.body;
+  const client = await db.pool.connect();
 
   try {
-    const esActivo = state === 'Activo';
-
-    if (esActivo) {
-      // Buscar otros contratos activos para el mismo empleado
-      const existingRes = await db.query(
-        `SELECT id, fecha_inicio, fecha_fin FROM contratos
-         WHERE empleado_id = $1 AND estado = 'Activo' AND id != $2
-         LIMIT 1`,
-        [employeeId, id]
-      );
-
-      if (existingRes.rows.length > 0) {
-        const activeContract = existingRes.rows[0];
-        if (!activeContract.fecha_fin) {
-          return res.status(400).json({
-            message: 'El empleado ya tiene otro contrato activo indefinido. Debe finalizarse o desactivarse primero.'
-          });
-        }
-
-        const finContratoActual = new Date(activeContract.fecha_fin);
-        const inicioNuevoContrato = new Date(fecha_inicio);
-
-        if (inicioNuevoContrato <= finContratoActual) {
-          const finFormateado = finContratoActual.toLocaleDateString('es-CO');
-          return res.status(400).json({
-            message: `El empleado tiene otro contrato activo que finaliza el ${finFormateado}. Este contrato debe iniciar después de esa fecha.`
-          });
-        }
+    await client.query('BEGIN');
+    const current = await client.query('SELECT id FROM contratos WHERE id = $1 FOR UPDATE', [contractId]);
+    if (!current.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Contrato no encontrado.' });
+    }
+    const employee = await client.query('SELECT id FROM empleados WHERE id = $1 AND activo = TRUE FOR UPDATE', [employeeId]);
+    if (!employee.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'El empleado no existe o está inactivo.' });
+    }
+    if (state === ACTIVE) {
+      const conflict = await validateActiveContract(client, employeeId, fecha_inicio, contractId);
+      if (conflict) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ message: conflict });
       }
     }
-
-    const queryText = `
-      UPDATE contratos
-      SET empleado_id = $1, tipo_contrato = $2, cargo = $3, fecha_inicio = $4, fecha_fin = $5, salario = $6, estado = $7
-      WHERE id = $8
-      RETURNING *
-    `;
-    const values = [
-      employeeId,
-      tipo_contrato,
-      cargo || null,
-      fecha_inicio,
-      fecha_fin || null,
-      salary,
-      state,
-      id
-    ];
-
-    const result = await db.query(queryText, values);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Contrato no encontrado' });
-    }
-
-    return res.status(200).json({
-      message: 'Contrato actualizado exitosamente',
-      contrato: result.rows[0]
-    });
-
+    const result = await client.query(
+      `UPDATE contratos
+       SET empleado_id = $1, tipo_contrato = $2, cargo = $3, fecha_inicio = $4, fecha_fin = $5, salario = $6, estado = $7
+       WHERE id = $8 RETURNING *`,
+      [employeeId, contractType, jobTitle, fecha_inicio, fecha_fin || null, salary, state, contractId]
+    );
+    await client.query('COMMIT');
+    return res.status(200).json({ message: 'Contrato actualizado exitosamente.', contrato: result.rows[0] });
   } catch (error) {
-    console.error('Error en contratoController.actualizarContrato:', error);
-    return res.status(500).json({ message: 'Error interno del servidor al actualizar contrato' });
+    await client.query('ROLLBACK');
+    if (error.code === '23505') return res.status(409).json({ message: 'Ya existe un contrato activo para este empleado.' });
+    console.error('Error en actualizarContrato:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al actualizar contrato.' });
+  } finally {
+    client.release();
   }
 };
 
-module.exports = {
-  crearContrato,
-  obtenerContratos,
-  actualizarContrato
-};
+module.exports = { crearContrato, obtenerContratos, actualizarContrato, validarContrato };
