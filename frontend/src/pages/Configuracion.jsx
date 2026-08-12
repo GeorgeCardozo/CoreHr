@@ -88,20 +88,10 @@ const Configuracion = () => {
 
       // 2. Actualizar el resto de la información
       const actualizacion = {
-        documento_identidad: profile.documento_identidad,
-        nombres: profile.nombres,
-        apellidos: profile.apellidos,
         telefono: telefono,
         direccion: direccion,
         contacto_emergencia: contactoEmergencia,
         telefono_emergencia: telefonoEmergencia,
-        // Mantener campos obligatorios o administrativos intactos
-        fecha_ingreso: profile.fecha_ingreso,
-        habilidades: profile.habilidades,
-        departamento: profile.departamento,
-        tipo_genero: profile.tipo_genero,
-        parentesco: profile.parentesco,
-        correo_personal: profile.correo_personal
       };
 
       const response = await actualizarEmpleado(profile.id, actualizacion);

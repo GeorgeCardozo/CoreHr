@@ -4,6 +4,7 @@ import { obtenerEmpleados, obtenerContratos, crearContrato, actualizarContrato, 
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
 import EmployeeAvatar from '../components/EmployeeAvatar';
+import { toDateOnly } from '../utils/dateOnly';
 
 // Componente reutilizable para Input con Etiqueta Flotante
 const FloatingInput = ({ label, id, name, value, onChange, type = 'text', required = false, placeholder = '', prefix = '', readOnly = false, disabled = false }) => {
@@ -145,23 +146,8 @@ const GestionContratos = () => {
     setShowForm(true);
     setEditingContractId(contrato.id);
 
-    let formattedInicio = '';
-    if (contrato.fecha_inicio) {
-      const d = new Date(contrato.fecha_inicio);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      formattedInicio = `${year}-${month}-${day}`;
-    }
-
-    let formattedFin = '';
-    if (contrato.fecha_fin) {
-      const d = new Date(contrato.fecha_fin);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      formattedFin = `${year}-${month}-${day}`;
-    }
+    const formattedInicio = toDateOnly(contrato.fecha_inicio);
+    const formattedFin = toDateOnly(contrato.fecha_fin);
 
     const emp = empleados.find(e => Number(e.id) === Number(contrato.empleado_id));
     setFormData({
@@ -226,7 +212,6 @@ const GestionContratos = () => {
         const emp = empleados.find(e => Number(e.id) === Number(formData.empleado_id));
         if (emp && formData.departamento !== emp.departamento) {
           await actualizarEmpleado(emp.id, {
-            ...emp,
             departamento: formData.departamento
           });
         }
@@ -241,7 +226,6 @@ const GestionContratos = () => {
         const emp = empleados.find(e => Number(e.id) === Number(formData.empleado_id));
         if (emp && formData.departamento !== emp.departamento) {
           await actualizarEmpleado(emp.id, {
-            ...emp,
             departamento: formData.departamento
           });
         }

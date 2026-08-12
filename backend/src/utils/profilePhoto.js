@@ -1,6 +1,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { detectImageMime } = require('./imageMime');
+const { normalizeEmployeeDates } = require('./dateValidation');
 
 const profilePhotoPath = (employee) => {
   const employeeId = employee?.empleado_id || employee?.id;
@@ -31,11 +32,11 @@ const readLegacyProfilePhoto = async (storedPath, uploadsDir) => {
 const normalizeProfilePhoto = (employee) => {
   if (!employee) return employee;
   const tieneFotoPerfil = Boolean(employee.foto_perfil_datos || employee.tiene_foto_perfil);
-  return {
+  return normalizeEmployeeDates({
     ...employee,
     foto_perfil: profilePhotoPath(employee),
     tiene_foto_perfil: tieneFotoPerfil,
-  };
+  });
 };
 
 module.exports = { profilePhotoPath, legacyProfilePhotoFilename, readLegacyProfilePhoto, normalizeProfilePhoto };

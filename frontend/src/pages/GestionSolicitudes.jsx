@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import { obtenerSolicitudes, actualizarEstadoSolicitud, obtenerAdjuntoSolicitud } from '../services/api';
 import { toast } from 'react-hot-toast';
 import EmployeeAvatar from '../components/EmployeeAvatar';
+import { formatDateOnlyEsCo } from '../utils/dateOnly';
 
 const GestionSolicitudes = () => {
   const [solicitudes, setSolicitudes] = useState([]);
@@ -114,13 +115,11 @@ const GestionSolicitudes = () => {
   };
 
   const formatearFecha = (fechaStr) => {
-    if (!fechaStr) return 'N/A';
-    const d = new Date(fechaStr.includes('T') ? fechaStr : fechaStr + 'T12:00:00');
-    return d.toLocaleDateString('es-CO', {
+    return formatDateOnlyEsCo(fechaStr, {
       day: 'numeric',
       month: 'short',
       year: 'numeric'
-    });
+    }) || 'N/A';
   };
 
   return (

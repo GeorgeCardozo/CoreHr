@@ -33,6 +33,7 @@ router.get('/:id/foto', verifyToken, obtenerFotoPerfil);
 
 // Ruta: PUT /api/empleados/:id (Protegida por JWT y Administrador/Propio)
 router.put('/:id', verifyToken, verificarAdminOPropioEmpleado, actualizarEmpleado);
+router.patch('/:id', verifyToken, verificarAdminOPropioEmpleado, actualizarEmpleado);
 
 // Ruta: DELETE /api/empleados/:id (Protegida por JWT y Administrador)
 router.delete('/:id', verifyToken, verificarAdmin, eliminarEmpleado);

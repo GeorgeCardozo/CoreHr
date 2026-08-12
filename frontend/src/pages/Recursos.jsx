@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import AdminLayout from '../components/AdminLayout';
 import { toast } from 'react-hot-toast';
 import { enviarMensajeChat, crearSolicitud, obtenerSolicitudes } from '../services/api';
+import { formatDateOnlyEsCo } from '../utils/dateOnly';
 
 const Recursos = () => {
   const { user } = useAuth();
@@ -381,8 +382,8 @@ No reemplaza la orientación de Gestión Humana ni emite conceptos legales o de 
                           </td>
                           <td className="py-4 px-6 text-on-surface-variant font-medium">
                             <div className="flex flex-col gap-0.5">
-                              <span>Desde: {new Date(sol.fecha_inicio).toLocaleDateString()}</span>
-                              <span>Hasta: {new Date(sol.fecha_fin).toLocaleDateString()}</span>
+                              <span>Desde: {formatDateOnlyEsCo(sol.fecha_inicio)}</span>
+                              <span>Hasta: {formatDateOnlyEsCo(sol.fecha_fin)}</span>
                             </div>
                           </td>
                           <td className="py-4 px-6 text-on-surface-variant max-w-xs truncate font-medium" title={sol.motivo}>

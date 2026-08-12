@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
+const { isDateRangeValid, isValidIsoDate, normalizeDateFields } = require('../utils/dateValidation');
 const { normalizeProfilePhoto } = require('../utils/profilePhoto');
 
 const ACTIVE = 'Activo';
@@ -43,8 +43,10 @@ const validateActiveContract = async (client, employeeId, startDate, excludedId 
   if (!activeContract.fecha_fin) {
     return 'El empleado ya tiene un contrato activo indefinido. Debe finalizarse o desactivarse antes de asignar uno nuevo.';
   }
-  if (startDate <= String(activeContract.fecha_fin).slice(0, 10)) {
-    return `El empleado tiene un contrato activo que finaliza el ${String(activeContract.fecha_fin).slice(0, 10)}. El nuevo contrato debe iniciar después de esa fecha.`;
+  const activeEndDate = normalizeDateFields(activeContract, ['fecha_fin']).fecha_fin;
+  if (!activeEndDate) return 'La fecha final del contrato activo no tiene un formato valido.';
+  if (startDate <= activeEndDate) {
+    return `El empleado tiene un contrato activo que finaliza el ${activeEndDate}. El nuevo contrato debe iniciar después de esa fecha.`;
   }
   return null;
 };
@@ -107,7 +109,10 @@ const obtenerContratos = async (req, res) => {
     );
     return res.status(200).json({
       message: 'Contratos obtenidos exitosamente.',
-      contratos: result.rows.map(normalizeProfilePhoto),
+      contratos: result.rows.map((contrato) => normalizeDateFields(
+        normalizeProfilePhoto(contrato),
+        ['fecha_inicio', 'fecha_fin']
+      )),
       pagination: { limit: parsedLimit, page: parsedPage },
     });
   } catch (error) {

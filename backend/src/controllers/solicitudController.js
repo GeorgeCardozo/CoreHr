@@ -2,7 +2,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const db = require('../config/db');
 const { crearNotificacionInterna } = require('./notificacionController');
-const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
+const { isDateRangeValid, isValidIsoDate, normalizeDateFields } = require('../utils/dateValidation');
 const { profilePhotoPath } = require('../utils/profilePhoto');
 
 const MAX_PAGE_SIZE = 200;
@@ -10,7 +10,7 @@ const REQUEST_COLUMNS = `
   s.id, s.empleado_id, s.tipo_solicitud, s.fecha_inicio, s.fecha_fin,
   s.motivo, s.archivo_adjunto, s.estado, s.comentarios_admin, s.fecha_creacion`;
 
-const buildSolicitudResponse = (solicitud) => ({
+const buildSolicitudResponse = (solicitud) => normalizeDateFields({
   ...Object.fromEntries(Object.entries(solicitud).filter(([key]) => !['archivo_datos', 'archivo_tipo'].includes(key))),
   tiene_foto_perfil: Boolean(solicitud.tiene_foto_perfil),
   ...(Object.hasOwn(solicitud, 'foto_perfil') ? {
@@ -21,7 +21,7 @@ const buildSolicitudResponse = (solicitud) => ({
     }),
   } : {}),
   archivo_url: solicitud.archivo_adjunto ? `/api/solicitudes/${solicitud.id}/adjunto` : null,
-});
+}, ['fecha_inicio', 'fecha_fin']);
 
 const formatDate = (value) => {
   const date = String(value || '').slice(0, 10).split('-');

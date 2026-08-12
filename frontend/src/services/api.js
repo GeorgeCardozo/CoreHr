@@ -88,7 +88,7 @@ export const obtenerContratos = async () => {
 };
 
 export const actualizarEmpleado = async (id, datos) => {
-  const response = await api.put(`/empleados/${id}`, datos);
+  const response = await api.patch(`/empleados/${id}`, datos);
   return response.data;
 };
 

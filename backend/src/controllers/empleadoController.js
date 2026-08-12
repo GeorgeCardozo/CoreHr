@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const db = require('../config/db');
 const { buildCertificatePdf } = require('../services/certificateService');
-const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
+const { isDateRangeValid, isValidIsoDate, normalizeDateOnly, normalizeEmployeeDates } = require('../utils/dateValidation');
 const {
   PROFILE_PRIVACY_FIELDS,
   normalizeProfilePrivacy,
@@ -21,10 +21,10 @@ const EMPLOYEE_SELECT = `
   e.parentesco, e.telefono_emergencia, e.direccion, e.foto_perfil,
   (e.foto_perfil_datos IS NOT NULL) AS tiene_foto_perfil,
   e.privacidad_perfil, e.activo`;
-const stripStoredPhoto = ({ foto_perfil_datos, foto_perfil_tipo, ...employee }) => normalizeProfilePhoto({
+const stripStoredPhoto = ({ foto_perfil_datos, foto_perfil_tipo, ...employee }) => normalizeProfilePhoto(normalizeEmployeeDates({
   ...employee,
   tiene_foto_perfil: Boolean(foto_perfil_datos || employee.tiene_foto_perfil),
-});
+}));
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const trimValue = (value) => typeof value === 'string' ? value.trim() : value;
@@ -82,6 +82,116 @@ const validateProfileFields = (data, { requireIdentity = false } = {}) => {
     return { message: 'Las habilidades exceden el límite permitido.' };
   }
   values.habilidades = habilidades;
+  return { values };
+};
+
+const EMPLOYEE_EDITABLE_FIELDS = new Set([
+  'telefono', 'habilidades', 'tipo_genero', 'fecha_nacimiento', 'correo_personal',
+  'contacto_emergencia', 'parentesco', 'telefono_emergencia', 'direccion',
+]);
+const ADMIN_EDITABLE_FIELDS = new Set([
+  ...EMPLOYEE_EDITABLE_FIELDS,
+  'correo', 'documento_identidad', 'nombres', 'apellidos', 'fecha_ingreso',
+  'fecha_info_personal', 'fecha_soportes', 'fecha_seguridad', 'superior_inmediato',
+  'departamento', 'fecha_terminacion', 'activo',
+]);
+const REQUIRED_TEXT_FIELDS = new Map([
+  ['correo', 255], ['documento_identidad', 50], ['nombres', 100], ['apellidos', 100],
+]);
+const OPTIONAL_TEXT_FIELDS = new Map([
+  ['telefono', 50], ['superior_inmediato', 100], ['departamento', 100], ['tipo_genero', 50],
+  ['correo_personal', 255], ['contacto_emergencia', 100], ['parentesco', 50],
+  ['telefono_emergencia', 50], ['direccion', 255],
+]);
+const EMPLOYEE_DATE_FIELDS = new Set([
+  'fecha_ingreso', 'fecha_info_personal', 'fecha_soportes',
+  'fecha_seguridad', 'fecha_terminacion', 'fecha_nacimiento',
+]);
+
+const validateProfilePatch = (incoming, { isAdmin, existing }) => {
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+    return { status: 400, message: 'La actualizacion debe enviarse como un objeto.' };
+  }
+  const allowedFields = isAdmin ? ADMIN_EDITABLE_FIELDS : EMPLOYEE_EDITABLE_FIELDS;
+  const unsupported = Object.keys(incoming).filter((field) => !allowedFields.has(field));
+  if (unsupported.length) {
+    return {
+      status: isAdmin ? 400 : 403,
+      message: `No tienes permiso para modificar: ${unsupported.join(', ')}.`,
+    };
+  }
+  if (Object.keys(incoming).length === 0) {
+    return { status: 400, message: 'No se enviaron campos para actualizar.' };
+  }
+
+  const values = {};
+  for (const [field, maxLength] of REQUIRED_TEXT_FIELDS) {
+    if (!Object.hasOwn(incoming, field)) continue;
+    const value = optionalText(incoming[field], maxLength);
+    if (!value) return { status: 400, message: `El campo ${field} es obligatorio.` };
+    if (field === 'correo' && !EMAIL_PATTERN.test(normalizeEmail(value))) {
+      return { status: 400, message: 'El correo institucional no es valido.' };
+    }
+    values[field] = field === 'correo' ? normalizeEmail(value) : value;
+  }
+
+  for (const [field, maxLength] of OPTIONAL_TEXT_FIELDS) {
+    if (!Object.hasOwn(incoming, field)) continue;
+    const value = optionalText(incoming[field], maxLength);
+    if (value === undefined) return { status: 400, message: `El campo ${field} supera la longitud permitida.` };
+    if (field === 'correo_personal' && value && !EMAIL_PATTERN.test(value)) {
+      return { status: 400, message: 'El correo personal no es valido.' };
+    }
+    values[field] = value;
+  }
+
+  for (const field of EMPLOYEE_DATE_FIELDS) {
+    if (!Object.hasOwn(incoming, field)) continue;
+    if (field === 'fecha_ingreso' && (incoming[field] === null || incoming[field] === '')) {
+      return { status: 400, message: 'La fecha fecha_ingreso es obligatoria.' };
+    }
+    if (incoming[field] === null || incoming[field] === '') {
+      values[field] = null;
+      continue;
+    }
+    if (typeof incoming[field] !== 'string' || !isValidIsoDate(incoming[field])) {
+      return { status: 400, message: `La fecha ${field} no es valida.` };
+    }
+    values[field] = incoming[field];
+  }
+
+  if (Object.hasOwn(incoming, 'habilidades')) {
+    if (incoming.habilidades !== null && !Array.isArray(incoming.habilidades)) {
+      return { status: 400, message: 'Las habilidades deben enviarse como una lista o null.' };
+    }
+    const habilidades = incoming.habilidades === null
+      ? null
+      : incoming.habilidades.map((item) => trimValue(String(item))).filter(Boolean);
+    if (habilidades?.length > 30 || habilidades?.some((item) => item.length > 80)) {
+      return { status: 400, message: 'Las habilidades exceden el limite permitido.' };
+    }
+    values.habilidades = habilidades;
+  }
+
+  if (Object.hasOwn(incoming, 'activo')) {
+    if (incoming.activo !== true) {
+      return { status: 400, message: 'Para desactivar una cuenta utiliza la accion de desactivacion.' };
+    }
+    values.activo = true;
+  }
+
+  const startDate = Object.hasOwn(values, 'fecha_ingreso')
+    ? values.fecha_ingreso
+    : normalizeDateOnly(existing.fecha_ingreso);
+  const endDate = Object.hasOwn(values, 'fecha_terminacion')
+    ? values.fecha_terminacion
+    : normalizeDateOnly(existing.fecha_terminacion);
+  if (startDate === undefined || endDate === undefined) {
+    return { status: 400, message: 'Una fecha historica del empleado no tiene un formato reconocible.' };
+  }
+  if (startDate && endDate && !isDateRangeValid(startDate, endDate)) {
+    return { status: 400, message: 'La fecha de terminacion no puede ser anterior a la fecha de ingreso.' };
+  }
   return { values };
 };
 
@@ -263,7 +373,14 @@ const actualizarEmpleado = async (req, res) => {
 
   try {
     await client.query('BEGIN');
-    const existingResult = await client.query('SELECT * FROM empleados WHERE id = $1', [employeeId]);
+    const existingResult = await client.query(
+      `SELECT e.*, u.correo
+       FROM empleados e
+       JOIN usuarios u ON u.id = e.usuario_id
+       WHERE e.id = $1
+       FOR UPDATE`,
+      [employeeId]
+    );
     const existing = existingResult.rows[0];
     if (!existing) {
       await client.query('ROLLBACK');
@@ -271,63 +388,49 @@ const actualizarEmpleado = async (req, res) => {
     }
 
     const incoming = req.body || {};
-    const merged = isAdmin
-      ? { ...existing, ...incoming, correo: incoming.correo }
-      : {
-          ...existing,
-          telefono: incoming.telefono ?? existing.telefono,
-          habilidades: incoming.habilidades ?? existing.habilidades,
-          tipo_genero: incoming.tipo_genero ?? existing.tipo_genero,
-          fecha_nacimiento: incoming.fecha_nacimiento ?? existing.fecha_nacimiento,
-          correo_personal: incoming.correo_personal ?? existing.correo_personal,
-          contacto_emergencia: incoming.contacto_emergencia ?? existing.contacto_emergencia,
-          parentesco: incoming.parentesco ?? existing.parentesco,
-          telefono_emergencia: incoming.telefono_emergencia ?? existing.telefono_emergencia,
-          direccion: incoming.direccion ?? existing.direccion,
-        };
-    if (!isAdmin) merged.correo = null;
-
-    const validation = validateProfileFields(merged, { requireIdentity: isAdmin });
+    const validation = validateProfilePatch(incoming, { isAdmin, existing });
     if (validation.message) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ message: validation.message });
+      return res.status(validation.status || 400).json({ message: validation.message });
     }
     const values = validation.values;
-    const nextActive = isAdmin && incoming.activo === true ? true : existing.activo;
-
-    if (isAdmin && incoming.activo === false) {
+    if (Object.hasOwn(values, 'activo') && values.activo === false) {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Para desactivar una cuenta utiliza la acción de desactivación.' });
     }
-    if (isAdmin && incoming.correo) {
+    if (Object.hasOwn(values, 'correo') && values.correo !== existing.correo) {
       await client.query('UPDATE usuarios SET correo = $1 WHERE id = $2', [values.correo, existing.usuario_id]);
     }
-    if (isAdmin && nextActive !== existing.activo) {
-      await client.query('UPDATE usuarios SET activo = $1, token_version = token_version + 1 WHERE id = $2', [nextActive, existing.usuario_id]);
+    if (Object.hasOwn(values, 'activo') && values.activo !== existing.activo) {
+      await client.query('UPDATE usuarios SET activo = $1, token_version = token_version + 1 WHERE id = $2', [values.activo, existing.usuario_id]);
     }
 
-    const result = await client.query(
-      `UPDATE empleados SET
-        documento_identidad = $1, nombres = $2, apellidos = $3, telefono = $4, fecha_ingreso = $5,
-        habilidades = $6, fecha_info_personal = $7, fecha_soportes = $8, fecha_seguridad = $9,
-        superior_inmediato = $10, departamento = $11, fecha_terminacion = $12, tipo_genero = $13,
-        fecha_nacimiento = $14, correo_personal = $15, contacto_emergencia = $16, parentesco = $17,
-        telefono_emergencia = $18, direccion = $19, activo = $20
-       WHERE id = $21 RETURNING *`,
-      [
-        values.documento_identidad, values.nombres, values.apellidos, values.telefono,
-        values.fecha_ingreso || existing.fecha_ingreso, values.habilidades ?? existing.habilidades,
-        values.fecha_info_personal, values.fecha_soportes, values.fecha_seguridad, values.superior_inmediato,
-        values.departamento, values.fecha_terminacion, values.tipo_genero, values.fecha_nacimiento,
-        values.correo_personal, values.contacto_emergencia, values.parentesco, values.telefono_emergencia,
-        values.direccion, nextActive, employeeId,
-      ]
-    );
+    const employeeChanges = Object.entries(values).filter(([field]) => field !== 'correo');
+    let updatedEmployee = existing;
+    if (employeeChanges.length) {
+      const assignments = employeeChanges.map(([field], index) => `${field} = $${index + 1}`);
+      const params = employeeChanges.map(([, value]) => value);
+      params.push(employeeId);
+      const result = await client.query(
+        `UPDATE empleados SET ${assignments.join(', ')} WHERE id = $${params.length} RETURNING *`,
+        params
+      );
+      updatedEmployee = result.rows[0];
+    }
     await client.query('COMMIT');
-    return res.status(200).json({ message: 'Empleado actualizado exitosamente.', empleado: stripStoredPhoto(result.rows[0]) });
+    return res.status(200).json({
+      message: 'Empleado actualizado exitosamente.',
+      empleado: stripStoredPhoto({
+        ...updatedEmployee,
+        correo: Object.hasOwn(values, 'correo') ? values.correo : existing.correo,
+      }),
+    });
   } catch (error) {
     await client.query('ROLLBACK');
-    if (error.code === '23505') return res.status(409).json({ message: 'El documento de identidad o correo ya están registrados.' });
+    if (error.code === '23505') {
+      const isEmailConflict = error.constraint?.includes('correo');
+      return res.status(409).json({ message: isEmailConflict ? 'El correo institucional ya está registrado.' : 'El documento de identidad ya está registrado.' });
+    }
     console.error('Error en actualizarEmpleado:', error);
     return res.status(500).json({ message: 'Error interno del servidor al actualizar empleado.' });
   } finally {

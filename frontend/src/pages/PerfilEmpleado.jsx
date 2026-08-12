@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import NotificationBell from '../components/NotificationBell';
 import logoSolo from '../assets/LogoSolo.png';
 import EmployeeAvatar from '../components/EmployeeAvatar';
+import { formatDateOnlyEsCo, toDateOnly } from '../utils/dateOnly';
 
 const VALOR_OCULTO = '••••••••';
 
@@ -241,8 +242,7 @@ const PerfilEmpleado = () => {
   };
 
   const getFechaFormateadaStepper = (fechaStr) => {
-    if (!fechaStr) return '';
-    return new Date(fechaStr).toLocaleDateString('es-CO', {
+    return formatDateOnlyEsCo(fechaStr, {
       day: 'numeric',
       month: 'short'
     });
@@ -259,7 +259,7 @@ const PerfilEmpleado = () => {
     setEditApellidos(profile?.apellidos || '');
     setEditDocumentoIdentidad(profile?.documento_identidad || '');
     setEditTipoGenero(profile?.tipo_genero || '');
-    setEditFechaNacimiento(profile?.fecha_nacimiento ? profile.fecha_nacimiento.substring(0, 10) : '');
+    setEditFechaNacimiento(toDateOnly(profile?.fecha_nacimiento));
     setSelectedFile(null);
     setEditError('');
     setIsModalOpen(true);
@@ -303,8 +303,6 @@ const PerfilEmpleado = () => {
 
       const payload = {
         telefono: editTelefono,
-        habilidades: profile?.habilidades,
-        fecha_info_personal: profile?.fecha_info_personal || new Date().toISOString(),
         tipo_genero: editTipoGenero,
         fecha_nacimiento: editFechaNacimiento || null,
         correo_personal: editCorreoPersonal,
@@ -318,12 +316,6 @@ const PerfilEmpleado = () => {
           documento_identidad: editDocumentoIdentidad,
           nombres: editNombres,
           apellidos: editApellidos,
-          fecha_ingreso: profile?.fecha_ingreso,
-          fecha_terminacion: profile?.fecha_terminacion,
-          fecha_soportes: profile?.fecha_soportes,
-          fecha_seguridad: profile?.fecha_seguridad,
-          superior_inmediato: profile?.superior_inmediato,
-          departamento: profile?.departamento,
         });
       }
 
@@ -345,7 +337,6 @@ const PerfilEmpleado = () => {
         parentesco: editParentesco,
         telefono_emergencia: editTelefonoEmergencia,
         direccion: editDireccion,
-        fecha_info_personal: profile?.fecha_info_personal || new Date().toISOString()
       });
 
       toast.success('Perfil actualizado con éxito');
@@ -582,11 +573,11 @@ const PerfilEmpleado = () => {
                     <div>
                       <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de contratación</span>
                       <p className="text-base text-on-surface font-medium">
-                        {profile?.fecha_ingreso ? new Date(profile.fecha_ingreso).toLocaleDateString('es-CO', {
+                        {formatDateOnlyEsCo(profile?.fecha_ingreso, {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric'
-                        }) : 'No registrado'}
+                        }) || 'No registrado'}
                       </p>
                     </div>
                   )}
@@ -595,15 +586,14 @@ const PerfilEmpleado = () => {
                   <div>
                     <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Fecha de terminación</span>
                     <p className="text-base text-on-surface font-medium">
-                      {(profile?.contrato_fecha_fin || profile?.fecha_terminacion) ? (() => {
-                        const dateStr = profile.contrato_fecha_fin || profile.fecha_terminacion;
-                        const dateObj = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
-                        return dateObj.toLocaleDateString('es-CO', {
+                      {(profile?.contrato_fecha_fin || profile?.fecha_terminacion) ? formatDateOnlyEsCo(
+                        profile.contrato_fecha_fin || profile.fecha_terminacion,
+                        {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric'
-                        });
-                      })() : profile?.tipo_contrato === 'Indefinido' ? 'No aplica (Indefinido)' : 'No registrado'}
+                        }
+                      ) : profile?.tipo_contrato === 'Indefinido' ? 'No aplica (Indefinido)' : 'No registrado'}
                     </p>
                   </div>
 
@@ -681,7 +671,7 @@ const PerfilEmpleado = () => {
 
                   <CampoPerfil
                     etiqueta="Fecha de nacimiento"
-                    valor={datoOculto(profile?.fecha_nacimiento) ? VALOR_OCULTO : (profile?.fecha_nacimiento ? new Date(profile.fecha_nacimiento.includes('T') ? profile.fecha_nacimiento : `${profile.fecha_nacimiento}T12:00:00`).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' }) : '')}
+                    valor={datoOculto(profile?.fecha_nacimiento) ? VALOR_OCULTO : formatDateOnlyEsCo(profile?.fecha_nacimiento, { year: 'numeric', month: 'long', day: 'numeric' })}
                     campoPrivacidad="fecha_nacimiento"
                     esPropioPerfil={esPropioPerfil}
                     preferencias={profile?.privacidad_perfil}
@@ -874,7 +864,7 @@ const PerfilEmpleado = () => {
                           </span>
                         </div>
                         <p className="text-[11px] text-on-surface-variant">
-                          Fecha: {new Date(sol.fecha_inicio.includes('T') ? sol.fecha_inicio : sol.fecha_inicio + 'T12:00:00').toLocaleDateString('es-CO')}
+                          Fecha: {formatDateOnlyEsCo(sol.fecha_inicio)}
                         </p>
                         <p className="text-[11px] text-on-surface line-clamp-2" title={sol.motivo}>
                           {sol.motivo}

@@ -4,6 +4,7 @@ import { obtenerEmpleados, actualizarEmpleado, eliminarEmpleado, crearEmpleadosM
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
 import EmployeeAvatar from '../components/EmployeeAvatar';
+import { formatDateOnlyEsCo, toDateOnly, todayDateOnly } from '../utils/dateOnly';
 
 const ListaEmpleados = () => {
   const [empleados, setEmpleados] = useState([]);
@@ -121,13 +122,13 @@ const ListaEmpleados = () => {
       const headers = ['Documento de identidad', 'Nombres', 'Apellidos', 'Correo institucional', 'Cargo', 'Departamento', 'Fecha de ingreso', 'Estado de contrato'];
       const rows = (empleadosFiltrados.length > 0 ? empleadosFiltrados : empleados).map((emp) => [
         emp.documento_identidad, emp.nombres, emp.apellidos, emp.correo, emp.cargo || 'No registrado',
-        emp.departamento || 'No registrado', emp.fecha_ingreso ? new Date(emp.fecha_ingreso).toLocaleDateString('es-CO') : '',
+        emp.departamento || 'No registrado', formatDateOnlyEsCo(emp.fecha_ingreso),
         emp.tiene_contrato ? 'Con contrato' : 'Sin contrato',
       ].map(csvCell).join(','));
       const blob = new Blob([`\uFEFF${headers.map(csvCell).join(',')}\n${rows.join('\n')}`], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      const dateStr = new Date().toISOString().split('T')[0];
+      const dateStr = todayDateOnly();
       link.href = url;
       link.download = `Reporte_Colaboradores_${dateStr}.csv`;
       document.body.appendChild(link);
@@ -243,31 +244,22 @@ const ListaEmpleados = () => {
   function handleOpenEdit(emp) {
     setSelectedEmpleado(emp);
     
-    const formatDate = (dateStr) => {
-      if (!dateStr) return '';
-      const d = new Date(dateStr);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
     setEditFormData({
       correo: emp.correo || '',
       documento_identidad: emp.documento_identidad || '',
       nombres: emp.nombres || '',
       apellidos: emp.apellidos || '',
       telefono: emp.telefono || '',
-      fecha_ingreso: formatDate(emp.fecha_ingreso),
+      fecha_ingreso: toDateOnly(emp.fecha_ingreso),
       superior_inmediato: emp.superior_inmediato || '',
       habilidades: Array.isArray(emp.habilidades) ? emp.habilidades.join(', ') : '',
-      fecha_info_personal: formatDate(emp.fecha_info_personal),
-      fecha_soportes: formatDate(emp.fecha_soportes),
-      fecha_seguridad: formatDate(emp.fecha_seguridad),
+      fecha_info_personal: toDateOnly(emp.fecha_info_personal),
+      fecha_soportes: toDateOnly(emp.fecha_soportes),
+      fecha_seguridad: toDateOnly(emp.fecha_seguridad),
       departamento: emp.departamento || '',
-      fecha_terminacion: formatDate(emp.fecha_terminacion),
+      fecha_terminacion: toDateOnly(emp.fecha_terminacion),
       tipo_genero: emp.tipo_genero || '',
-      fecha_nacimiento: formatDate(emp.fecha_nacimiento),
+      fecha_nacimiento: toDateOnly(emp.fecha_nacimiento),
       correo_personal: emp.correo_personal || '',
       contacto_emergencia: emp.contacto_emergencia || '',
       parentesco: emp.parentesco || '',
@@ -525,7 +517,7 @@ const ListaEmpleados = () => {
                             {emp.cargo || 'No registrado'}
                           </td>
                           <td className="py-4 px-6 text-on-surface-variant">
-                            {new Date(emp.fecha_ingreso).toLocaleDateString()}
+                            {formatDateOnlyEsCo(emp.fecha_ingreso)}
                           </td>
                           <td className="py-4 px-6">
                             {emp.tiene_contrato ? (

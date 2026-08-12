@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { Toaster } from 'react-hot-toast';
 import AdminLayout from './components/AdminLayout';
 import CambiarContrasena from './components/CambiarContrasena';
+import { formatDateOnlyEsCo } from './utils/dateOnly';
 
 const Login = lazy(() => import('./pages/Login'));
 const ListaEmpleados = lazy(() => import('./pages/ListaEmpleados'));
@@ -121,7 +122,7 @@ const Dashboard = () => {
                 <span className="text-on-surface-variant font-semibold">Teléfono:</span>
                 <span>{profile.telefono || 'No registrado'}</span>
                 <span className="text-on-surface-variant font-semibold">Fecha de ingreso:</span>
-                <span>{new Date(profile.fecha_ingreso).toLocaleDateString()}</span>
+                <span>{formatDateOnlyEsCo(profile.fecha_ingreso)}</span>
               </div>
             ) : (
               <p className="text-xs text-on-surface-variant italic">No hay información de empleado asociada a esta cuenta de usuario.</p>
