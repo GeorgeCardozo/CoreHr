@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { obtenerEmpleados, obtenerContratos, crearContrato, actualizarContrato, actualizarEmpleado, getAssetUrl } from '../services/api';
+import { obtenerEmpleados, obtenerContratos, crearContrato, actualizarContrato, actualizarEmpleado } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
+import EmployeeAvatar from '../components/EmployeeAvatar';
 
 // Componente reutilizable para Input con Etiqueta Flotante
 const FloatingInput = ({ label, id, name, value, onChange, type = 'text', required = false, placeholder = '', prefix = '', readOnly = false, disabled = false }) => {
@@ -270,33 +271,6 @@ const GestionContratos = () => {
   const manejarModuloEnDesarrollo = (e) => {
     e.preventDefault();
     toast('Módulo en desarrollo para la Fase 2', { icon: '🚧' });
-  };
-
-  const getAvatar = (contrato) => {
-    if (contrato?.foto_perfil) {
-      return getAssetUrl(contrato.foto_perfil);
-    }
-    const nombres = contrato?.nombres || 'C';
-    const apellidos = contrato?.apellidos || 'Colaborador';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <rect width="100" height="100" fill="${color}" />
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
-          ${iniciales}
-        </text>
-      </svg>
-    `.trim().replace(/\s+/g, ' ');
-
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   };
 
   // Filtrado de contratos en la tabla
@@ -1010,13 +984,11 @@ const GestionContratos = () => {
                           {contratosFiltrados.map((contrato) => (
                             <tr key={contrato.id} className="group hover:bg-surface-container/10 transition-colors">
                               <td className="py-3.5 pr-4 flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-8 rounded-full bg-surface-container overflow-hidden shrink-0 border border-outline-variant/60">
-                                  <img
-                                    alt={`${contrato.nombres} profile avatar`}
-                                    className="w-full h-full object-cover"
-                                    src={getAvatar(contrato)}
-                                  />
-                                </div>
+                                <EmployeeAvatar
+                                  employee={contrato}
+                                  alt={`Foto de perfil de ${contrato.nombres}`}
+                                  className="w-8 h-8 rounded-full bg-surface-container shrink-0 border border-outline-variant/60 text-xs"
+                                />
                                 <div className="flex flex-col min-w-0">
                                   <span className="text-xs font-bold text-on-surface tracking-tight truncate max-w-[140px] sm:max-w-[180px]">
                                     {contrato.nombres} {contrato.apellidos}

@@ -3,6 +3,7 @@ const path = require('path');
 const db = require('../config/db');
 const { crearNotificacionInterna } = require('./notificacionController');
 const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
+const { profilePhotoPath } = require('../utils/profilePhoto');
 
 const MAX_PAGE_SIZE = 200;
 const REQUEST_COLUMNS = `
@@ -11,6 +12,14 @@ const REQUEST_COLUMNS = `
 
 const buildSolicitudResponse = (solicitud) => ({
   ...Object.fromEntries(Object.entries(solicitud).filter(([key]) => !['archivo_datos', 'archivo_tipo'].includes(key))),
+  tiene_foto_perfil: Boolean(solicitud.tiene_foto_perfil),
+  ...(Object.hasOwn(solicitud, 'foto_perfil') ? {
+    foto_perfil: profilePhotoPath({
+      empleado_id: solicitud.empleado_id,
+      foto_perfil: solicitud.foto_perfil,
+      tiene_foto_perfil: solicitud.tiene_foto_perfil,
+    }),
+  } : {}),
   archivo_url: solicitud.archivo_adjunto ? `/api/solicitudes/${solicitud.id}/adjunto` : null,
 });
 
@@ -82,7 +91,8 @@ const listarSolicitudes = async (req, res) => {
   try {
     if (req.user.rol_id === 1) {
       const result = await db.query(
-        `SELECT ${REQUEST_COLUMNS}, e.nombres, e.apellidos, e.documento_identidad, e.foto_perfil, e.departamento, c.cargo
+        `SELECT ${REQUEST_COLUMNS}, e.nombres, e.apellidos, e.documento_identidad, e.foto_perfil,
+                (e.foto_perfil_datos IS NOT NULL) AS tiene_foto_perfil, e.departamento, c.cargo
          FROM solicitudes s
          JOIN empleados e ON s.empleado_id = e.id
          LEFT JOIN LATERAL (

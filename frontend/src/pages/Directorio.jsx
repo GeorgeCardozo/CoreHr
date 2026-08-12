@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { obtenerDirectorio, getAssetUrl } from '../services/api';
+import { obtenerDirectorio } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
 import NotificationBell from '../components/NotificationBell';
+import EmployeeAvatar from '../components/EmployeeAvatar';
 
 const Directorio = () => {
   const { user } = useAuth();
@@ -97,33 +98,6 @@ const Directorio = () => {
   };
 
   // Función para asignar avatar premium basado en foto de perfil real o iniciales SVG dinámicas
-  const getAvatar = (emp) => {
-    if (emp?.foto_perfil) {
-      return getAssetUrl(emp.foto_perfil);
-    }
-    const nombres = emp?.nombres || 'C';
-    const apellidos = emp?.apellidos || 'Colaborador';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <rect width="100" height="100" fill="${color}" />
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
-          ${iniciales}
-        </text>
-      </svg>
-    `.trim().replace(/\s+/g, ' ');
-    
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  };
-
   // Determinar color de badge por departamento con alto contraste en ambos temas
   const getBadgeStyles = (dept) => {
     const d = (dept || '').toLowerCase();
@@ -213,13 +187,11 @@ const Directorio = () => {
                 className="bg-surface-container-lowest border border-outline-variant/60 hover:border-primary/40 rounded-2xl shadow-xl hover:shadow-primary/5 p-6 flex flex-col items-center text-center relative transition-all duration-300 group hover:-translate-y-1"
               >
                 {/* Avatar */}
-                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-outline-variant mb-4 group-hover:border-primary/30 transition-colors bg-surface-container shadow-inner">
-                  <img 
-                    alt={`Foto de perfil de ${emp.nombres} ${emp.apellidos}`}
-                    className="w-full h-full object-cover" 
-                    src={getAvatar(emp)} 
-                  />
-                </div>
+                <EmployeeAvatar
+                  employee={emp}
+                  alt={`Foto de perfil de ${emp.nombres} ${emp.apellidos}`}
+                  className="w-20 h-20 rounded-full border-2 border-outline-variant mb-4 group-hover:border-primary/30 transition-colors bg-surface-container shadow-inner text-xl"
+                />
 
                 <h3 className="text-sm font-bold text-on-surface tracking-tight">
                   {emp.nombres} {emp.apellidos}
@@ -333,10 +305,10 @@ const Directorio = () => {
             aria-label="Ver mi perfil"
             className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer hover:opacity-80 transition-opacity"
           >
-            <img 
+            <EmployeeAvatar
+              employee={user?.profile}
               alt="Foto de mi perfil"
-              className="w-full h-full object-cover" 
-              src={getAvatar(user?.profile)}
+              className="w-full h-full text-xs"
             />
           </button>
         </div>

@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
+const { normalizeProfilePhoto } = require('../utils/profilePhoto');
 
 const ACTIVE = 'Activo';
 const INACTIVE = 'Inactivo';
@@ -97,7 +98,8 @@ const obtenerContratos = async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT c.*, e.nombres, e.apellidos, e.foto_perfil
+      `SELECT c.*, e.nombres, e.apellidos, e.foto_perfil,
+              (e.foto_perfil_datos IS NOT NULL) AS tiene_foto_perfil
        FROM contratos c JOIN empleados e ON c.empleado_id = e.id
        WHERE ($1::integer IS NULL OR c.empleado_id = $1)
        ORDER BY c.id DESC LIMIT $2 OFFSET $3`,
@@ -105,7 +107,7 @@ const obtenerContratos = async (req, res) => {
     );
     return res.status(200).json({
       message: 'Contratos obtenidos exitosamente.',
-      contratos: result.rows,
+      contratos: result.rows.map(normalizeProfilePhoto),
       pagination: { limit: parsedLimit, page: parsedPage },
     });
   } catch (error) {

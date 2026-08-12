@@ -1,4 +1,5 @@
 const MASK = '••••••••';
+const { normalizeProfilePhoto } = require('./profilePhoto');
 
 // Estos campos pueden ser publicados voluntariamente por el titular.
 // Por privacidad, todos parten ocultos hasta que el colaborador decida lo contrario.
@@ -68,7 +69,7 @@ const canViewFullPerfil = (requesterRolId, requesterUserId, perfilUsuarioId) =>
   Number(requesterRolId) === 1 || Number(perfilUsuarioId) === Number(requesterUserId);
 
 const sanitizePerfilForViewer = (perfil, requesterUserId, requesterRolId) => {
-  const sanitized = { ...perfil };
+  const sanitized = normalizeProfilePhoto(perfil);
   const isAdmin = Number(requesterRolId) === 1;
   const isOwner = Number(perfil.usuario_id) === Number(requesterUserId);
   const privacy = normalizeProfilePrivacy(perfil.privacidad_perfil);

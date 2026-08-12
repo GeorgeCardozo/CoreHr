@@ -56,6 +56,35 @@ npm --prefix frontend audit --omit=dev --audit-level=high
 
 Las fotos de perfil y soportes nuevos se guardan en PostgreSQL para sobrevivir reinicios de Render. Los archivos antiguos que ya se perdieron del disco efímero no pueden reconstruirse y deben cargarse nuevamente.
 
+### Migración manual de fotos históricas
+
+El comando es una simulación de solo lectura mientras no se agregue `--apply`:
+
+```bash
+cd backend
+npm run migrate-profile-images
+```
+
+Revise `backend/scratch/profile-image-migration-report.json`. Para migrar contra la conexión configurada sin sobrescribir fotos que ya estén en BYTEA:
+
+```bash
+npm run migrate-profile-images -- --apply
+```
+
+`DATABASE_URL` tiene prioridad sobre `DB_*`. `--overwrite` existe para una corrección deliberada, requiere `--apply` y no debe usarse en la primera ejecución. El script no cambia `foto_perfil`, no borra archivos y ejecutarlo nuevamente omite las fotos ya persistidas.
+
+Para Neon desde PowerShell, asigne temporalmente la URL copiada del panel, simule, revise el reporte y solo entonces aplique:
+
+```powershell
+$env:DATABASE_URL = 'postgresql://...'
+npm run migrate
+npm run migrate-profile-images
+npm run migrate-profile-images -- --apply
+Remove-Item Env:DATABASE_URL
+```
+
+La URL contiene credenciales: no la guarde en Git ni en el historial compartido. El análisis local reproducible de los archivos incluidos en este equipo está en `backend/reports/profile-image-migration-analysis.json`.
+
 ## Lista mínima antes de producción local
 
 - Definir `NODE_ENV=production`, `CORS_ORIGINS` con los orígenes reales y un `JWT_SECRET` único. No reutilizar valores de ejemplo.

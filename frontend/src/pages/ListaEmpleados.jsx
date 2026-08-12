@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { obtenerEmpleados, actualizarEmpleado, eliminarEmpleado, crearEmpleadosMasivo, getAssetUrl, subirFotoPerfil } from '../services/api';
+import { obtenerEmpleados, actualizarEmpleado, eliminarEmpleado, crearEmpleadosMasivo, subirFotoPerfil } from '../services/api';
 import { toast } from 'react-hot-toast';
 import AdminLayout from '../components/AdminLayout';
+import EmployeeAvatar from '../components/EmployeeAvatar';
 
 const ListaEmpleados = () => {
   const [empleados, setEmpleados] = useState([]);
@@ -140,33 +141,6 @@ const ListaEmpleados = () => {
     }
   };
 
-  const getAvatar = (emp) => {
-    if (emp?.foto_perfil) {
-      return getAssetUrl(emp.foto_perfil);
-    }
-    const nombres = emp?.nombres || 'C';
-    const apellidos = emp?.apellidos || 'Colaborador';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <rect width="100" height="100" fill="${color}" />
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
-          ${iniciales}
-        </text>
-      </svg>
-    `.trim().replace(/\s+/g, ' ');
-    
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  };
-
   useEffect(() => {
     const cerrarMenu = () => {
       setMenuAbiertoId(null)
@@ -222,6 +196,10 @@ const ListaEmpleados = () => {
   const [editLoading, setEditLoading] = useState(false);
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
+
+  useEffect(() => () => {
+    if (editPhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(editPhotoPreview);
+  }, [editPhotoPreview]);
 
   const fetchEmpleados = async () => {
     try {
@@ -297,7 +275,7 @@ const ListaEmpleados = () => {
     });
     setEditError('');
     setEditPhotoFile(null);
-    setEditPhotoPreview(emp.foto_perfil ? getAssetUrl(emp.foto_perfil) : null);
+    setEditPhotoPreview(null);
     setIsEditModalOpen(true);
   }
 
@@ -322,17 +300,15 @@ const ListaEmpleados = () => {
     setEditLoading(true);
 
     try {
-      let nuevaFoto = selectedEmpleado.foto_perfil;
+      let tieneFotoPerfil = selectedEmpleado.tiene_foto_perfil;
 
       if (editPhotoFile) {
         const formData = new FormData();
         formData.append('foto', editPhotoFile);
         formData.append('empleado_id', selectedEmpleado.id);
 
-        const photoRes = await subirFotoPerfil(formData);
-        if (photoRes?.foto_perfil) {
-          nuevaFoto = photoRes.foto_perfil;
-        }
+        await subirFotoPerfil(formData);
+        tieneFotoPerfil = true;
       }
 
       const data = await actualizarEmpleado(selectedEmpleado.id, {
@@ -359,7 +335,7 @@ const ListaEmpleados = () => {
 
       // Actualizar la lista localmente
       setEmpleados((prev) => 
-        prev.map((emp) => emp.id === selectedEmpleado.id ? { ...emp, ...data.empleado, foto_perfil: nuevaFoto } : emp)
+        prev.map((emp) => emp.id === selectedEmpleado.id ? { ...emp, ...data.empleado, tiene_foto_perfil: tieneFotoPerfil } : emp)
       );
       setIsEditModalOpen(false);
       setSelectedEmpleado(null);
@@ -534,11 +510,11 @@ const ListaEmpleados = () => {
                         >
                           <td className="py-4 px-6">
                             <div className='flex gap-2 items-center'>
-                            <img 
-                               src={getAvatar(emp)} 
-                               alt={`Foto de ${emp.nombres}`} 
-                               className='w-10 h-10 rounded-full object-cover' 
-                             />
+                            <EmployeeAvatar
+                              employee={emp}
+                              alt={`Foto de ${emp.nombres}`}
+                              className="w-10 h-10 rounded-full text-xs"
+                            />
                             <div>
                             <div className='font-medium text-on-surface'> { emp.nombres} { emp.apellidos}</div>
                             <div className='text-xs  text-on-surface-variant'> { emp.correo}</div>
@@ -626,10 +602,11 @@ const ListaEmpleados = () => {
                 {/* Foto de Perfil */}
                 <div className="flex flex-col items-center justify-center space-y-2 pb-2 border-b border-outline-variant/40">
                   <div className="relative w-20 h-20 rounded-full overflow-hidden ring-4 ring-primary/20 shadow-md group">
-                    <img
-                      src={editPhotoPreview || getAvatar(selectedEmpleado)}
+                    <EmployeeAvatar
+                      employee={selectedEmpleado}
+                      previewSrc={editPhotoPreview}
                       alt="Foto del colaborador"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full text-xl"
                     />
                     <label
                       htmlFor="edit_foto_input"

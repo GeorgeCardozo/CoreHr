@@ -1,0 +1,45 @@
+{
+  "generado_en": "2026-08-12",
+  "origen": "Simulación local de backend/scripts/migrate-profile-images-to-db.js",
+  "resumen": {
+    "total_empleados": 169,
+    "archivos_historicos_detectados": 285,
+    "empleados_con_asociacion_automatica": 154,
+    "empleados_sin_foto": 15,
+    "asociaciones_ambiguas": 0,
+    "archivos_asociados_alternativos_o_duplicados": 127,
+    "archivos_sin_empleado_asociado": 4
+  },
+  "criterios": [
+    "Coincidencia exacta con el nombre almacenado en empleados.foto_perfil.",
+    "Como fallback, coincidencia única foto-<documento_identidad>.<ext>.",
+    "Los archivos con el mismo SHA-256 se consideran copias del mismo contenido.",
+    "No se asociaron archivos solo por apariencia o nombre aleatorio."
+  ],
+  "archivos_sin_empleado_asociado": [
+    {
+      "archivo": "foto-1780417843770-106264260.png",
+      "mime": "image/png",
+      "sha256": "15131f2bb57ae28ebe6d0e6df626ee1e4e2b38060d7c9689d51cc6426dd0cff2",
+      "revision": "Logo institucional; no es una foto de empleado."
+    },
+    {
+      "archivo": "foto-1782940088802-671431751.png",
+      "mime": "image/png",
+      "sha256": "15131f2bb57ae28ebe6d0e6df626ee1e4e2b38060d7c9689d51cc6426dd0cff2",
+      "revision": "Duplicado del logo institucional; no es una foto de empleado."
+    },
+    {
+      "archivo": "foto-1783367010705-813663834.png",
+      "mime": "image/png",
+      "sha256": "095238178e5488c9364a3e66ee3ba165a276994ead57f286c7f7f8060cf83c2d",
+      "revision": "Recurso gráfico institucional; no es una foto de empleado."
+    },
+    {
+      "archivo": "foto-1785176704636-975823139.png",
+      "mime": "image/png",
+      "sha256": "0e773ba6bf57e512befc8a2155c8dbe94ebb0c397a67cfc15dbcbfc8de140fed",
+      "revision": "Imagen genérica de muestra; no se encontró relación verificable con un empleado."
+    }
+  ]
+}

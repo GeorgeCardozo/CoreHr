@@ -5,7 +5,8 @@ import { useTheme } from '../context/ThemeContext';
 import { toast } from 'react-hot-toast';
 import NotificationBell from './NotificationBell';
 import CambiarContrasena from './CambiarContrasena';
-import { getAssetUrl, obtenerDirectorio } from '../services/api';
+import EmployeeAvatar from './EmployeeAvatar';
+import { obtenerDirectorio } from '../services/api';
 import logoSolo from '../assets/LogoSolo.png';
 
 const HeaderSearch = ({ isAdmin }) => {
@@ -43,23 +44,6 @@ const HeaderSearch = ({ isAdmin }) => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
-
-  const getAvatar = (emp) => {
-    if (emp?.foto_perfil) {
-      return getAssetUrl(emp.foto_perfil);
-    }
-    const nombres = emp?.nombres || 'C';
-    const apellidos = emp?.apellidos || 'Colaborador';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><rect width="100" height="100" fill="${color}" /><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit','Inter',sans-serif" font-size="38" font-weight="bold" fill="#ffffff">${iniciales}</text></svg>`.trim().replace(/\s+/g, ' ');
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  };
 
   const filteredResults = useMemo(() => {
     if (!query.trim()) return [];
@@ -143,10 +127,10 @@ const HeaderSearch = ({ isAdmin }) => {
                   onClick={() => handleSelectEmployee(emp.id)}
                   className="w-full text-left p-2.5 flex items-center gap-3 hover:bg-surface-container/60 transition-colors group cursor-pointer"
                 >
-                  <img
-                    src={getAvatar(emp)}
-                    alt={emp.nombres}
-                    className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-outline-variant"
+                  <EmployeeAvatar
+                    employee={emp}
+                    alt={`Foto de perfil de ${emp.nombres}`}
+                    className="w-8 h-8 rounded-full shrink-0 ring-1 ring-outline-variant text-xs"
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-on-surface group-hover:text-primary transition-colors truncate">
@@ -187,35 +171,6 @@ const AdminLayout = ({ children }) => {
     ? `${user.profile.nombres} ${user.profile.apellidos || ''}`
     : (user?.correo ? user.correo.split('@')[0] : 'Usuario');
   const activeUserRole = user?.profile?.cargo || (user?.rol_id === 1 ? 'Gestión Humana' : 'Colaborador');
-  const getAvatar = (emp) => {
-    if (emp?.foto_perfil) {
-      return getAssetUrl(emp.foto_perfil);
-    }
-    const nombres = emp?.nombres || 'Usuario';
-    const apellidos = emp?.apellidos || 'CoreRRHH';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <rect width="100" height="100" fill="${color}" />
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
-          ${iniciales}
-        </text>
-      </svg>
-    `.trim().replace(/\s+/g, ' ');
-
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  };
-
-  const activeUserAvatar = getAvatar(user?.profile);
-
   // Si el usuario no es administrador (rol_id !== 1), mostramos un layout simplificado o adaptado
   const isAdmin = user?.rol_id === 1;
 
@@ -452,10 +407,10 @@ const AdminLayout = ({ children }) => {
                 aria-label="Ver mi perfil"
                 title="Ver mi perfil"
               >
-                <img
+                <EmployeeAvatar
+                  employee={user?.profile}
                   alt="Foto del usuario actual"
-                  className="w-full h-full object-cover"
-                  src={activeUserAvatar}
+                  className="w-full h-full text-xs"
                 />
               </button>
             </div>

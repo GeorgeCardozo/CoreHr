@@ -6,14 +6,18 @@ const configuredApiUrl = normalizedApiUrl && !normalizedApiUrl.endsWith('/api')
   ? `${normalizedApiUrl}/api`
   : normalizedApiUrl;
 export const API_BASE_URL = configuredApiUrl || '/api';
-export const API_ORIGIN = configuredApiUrl
-  ? configuredApiUrl.replace(/\/api$/, '')
-  : '';
 
-export const getAssetUrl = (assetPath) => {
-  if (!assetPath) return '';
-  if (/^https?:\/\//i.test(assetPath) || assetPath.startsWith('data:')) return assetPath;
-  return `${API_ORIGIN}${assetPath}`;
+const getEmployeeId = (employeeOrId) => {
+  const value = typeof employeeOrId === 'object'
+    ? employeeOrId?.empleado_id ?? employeeOrId?.id
+    : employeeOrId;
+  const employeeId = Number(value);
+  return Number.isInteger(employeeId) && employeeId > 0 ? employeeId : null;
+};
+
+export const getEmployeePhotoUrl = (employeeOrId) => {
+  const employeeId = getEmployeeId(employeeOrId);
+  return employeeId ? `${API_BASE_URL}/empleados/${employeeId}/foto` : '';
 };
 
 const api = axios.create({
@@ -100,6 +104,17 @@ export const actualizarPrivacidadPerfil = async (preferencias) => {
 
 export const subirFotoPerfil = async (formData) => {
   const response = await api.put('/empleados/perfil/foto', formData);
+  return response.data;
+};
+
+export const obtenerFotoEmpleado = async (employeeOrId, signal) => {
+  const photoUrl = getEmployeePhotoUrl(employeeOrId);
+  if (!photoUrl) return null;
+  const requestPath = photoUrl.slice(API_BASE_URL.length);
+  const response = await api.get(requestPath, {
+    responseType: 'blob',
+    signal,
+  });
   return response.data;
 };
 

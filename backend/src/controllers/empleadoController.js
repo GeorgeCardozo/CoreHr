@@ -8,10 +8,23 @@ const {
   sanitizePerfilForViewer,
 } = require('../utils/perfilSanitizer');
 const { validatePassword } = require('../utils/passwordPolicy');
+const { detectImageMime } = require('../utils/imageMime');
+const { normalizeProfilePhoto } = require('../utils/profilePhoto');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_BULK_SIZE = 500;
-const stripStoredPhoto = ({ foto_perfil_datos, foto_perfil_tipo, ...employee }) => employee;
+const EMPLOYEE_SELECT = `
+  e.id, e.usuario_id, e.documento_identidad, e.nombres, e.apellidos, e.telefono,
+  e.fecha_ingreso, e.departamento, e.habilidades, e.fecha_info_personal,
+  e.fecha_soportes, e.fecha_seguridad, e.superior_inmediato, e.fecha_terminacion,
+  e.tipo_genero, e.fecha_nacimiento, e.correo_personal, e.contacto_emergencia,
+  e.parentesco, e.telefono_emergencia, e.direccion, e.foto_perfil,
+  (e.foto_perfil_datos IS NOT NULL) AS tiene_foto_perfil,
+  e.privacidad_perfil, e.activo`;
+const stripStoredPhoto = ({ foto_perfil_datos, foto_perfil_tipo, ...employee }) => normalizeProfilePhoto({
+  ...employee,
+  tiene_foto_perfil: Boolean(foto_perfil_datos || employee.tiene_foto_perfil),
+});
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const trimValue = (value) => typeof value === 'string' ? value.trim() : value;
@@ -73,7 +86,7 @@ const validateProfileFields = (data, { requireIdentity = false } = {}) => {
 };
 
 const profileQuery = (whereClause) => `
-  SELECT e.*, u.correo, u.rol_id, u.activo AS usuario_activo,
+  SELECT ${EMPLOYEE_SELECT}, u.correo, u.rol_id, u.activo AS usuario_activo,
          c.cargo, c.tipo_contrato, c.salario,
          c.fecha_inicio AS contrato_fecha_inicio, c.fecha_fin AS contrato_fecha_fin,
          c.estado AS contrato_estado
@@ -225,7 +238,7 @@ const listarEmpleados = async (req, res) => {
   const includeInactive = req.query.incluir_inactivos === 'true';
   try {
     const result = await db.query(`
-      SELECT e.*, u.correo, u.activo AS usuario_activo, c.cargo, (c.id IS NOT NULL) AS tiene_contrato
+      SELECT ${EMPLOYEE_SELECT}, u.correo, u.activo AS usuario_activo, c.cargo, (c.id IS NOT NULL) AS tiene_contrato
       FROM empleados e
       JOIN usuarios u ON u.id = e.usuario_id
       LEFT JOIN LATERAL (
@@ -416,12 +429,13 @@ const generarCertificado = async (req, res) => {
 const obtenerDirectorio = async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT e.id, e.nombres, e.apellidos, e.foto_perfil, e.departamento,
+      SELECT e.id, e.nombres, e.apellidos, e.foto_perfil,
+             (e.foto_perfil_datos IS NOT NULL) AS tiene_foto_perfil, e.departamento,
              (SELECT cargo FROM contratos WHERE empleado_id = e.id AND estado = 'Activo' AND cargo IS NOT NULL ORDER BY id DESC LIMIT 1) AS cargo
       FROM empleados e
       WHERE e.activo = TRUE
       ORDER BY e.nombres ASC, e.apellidos ASC`);
-    return res.status(200).json({ message: 'Directorio obtenido exitosamente.', empleados: result.rows });
+    return res.status(200).json({ message: 'Directorio obtenido exitosamente.', empleados: result.rows.map(normalizeProfilePhoto) });
   } catch (error) {
     console.error('Error en obtenerDirectorio:', error);
     return res.status(500).json({ message: 'Error interno del servidor al obtener el directorio.' });
@@ -476,12 +490,17 @@ const obtenerFotoPerfil = async (req, res) => {
       [employeeId]
     );
     const photo = result.rows[0];
-    if (!photo?.foto_perfil_datos) return res.status(404).json({ message: 'La foto de perfil no está disponible.' });
+    if (!photo) return res.status(404).json({ message: 'La foto de perfil no está disponible.' });
 
-    res.setHeader('Content-Type', photo.foto_perfil_tipo || 'application/octet-stream');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    const bytes = photo.foto_perfil_datos;
+    if (!bytes) return res.status(404).json({ message: 'La foto de perfil no est\u00e1 disponible.' });
+    const mime = detectImageMime(bytes) || photo.foto_perfil_tipo;
+    if (!mime) return res.status(415).json({ message: 'El formato de la foto de perfil no es reconocido.' });
+
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'private, max-age=3600, must-revalidate');
     res.setHeader('Content-Disposition', 'inline');
-    return res.send(photo.foto_perfil_datos);
+    return res.send(bytes);
   } catch (error) {
     console.error('Error en obtenerFotoPerfil:', error);
     return res.status(500).json({ message: 'Error interno del servidor al consultar la foto.' });

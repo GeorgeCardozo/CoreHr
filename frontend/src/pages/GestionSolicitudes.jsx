@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { obtenerSolicitudes, actualizarEstadoSolicitud, obtenerAdjuntoSolicitud, getAssetUrl } from '../services/api';
+import { obtenerSolicitudes, actualizarEstadoSolicitud, obtenerAdjuntoSolicitud } from '../services/api';
 import { toast } from 'react-hot-toast';
+import EmployeeAvatar from '../components/EmployeeAvatar';
 
 const GestionSolicitudes = () => {
   const [solicitudes, setSolicitudes] = useState([]);
@@ -92,33 +93,6 @@ const GestionSolicitudes = () => {
   const totalPendientes = solicitudes.filter(s => s.estado === 'Pendiente').length;
   const totalAprobados = solicitudes.filter(s => s.estado === 'Aprobado').length;
   const totalRechazados = solicitudes.filter(s => s.estado === 'Rechazado').length;
-
-  const getAvatar = (emp) => {
-    if (emp?.foto_perfil) {
-      return getAssetUrl(emp.foto_perfil);
-    }
-    const nombres = emp?.nombres || 'C';
-    const apellidos = emp?.apellidos || 'Colaborador';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <rect width="100" height="100" fill="${color}" />
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
-          ${iniciales}
-        </text>
-      </svg>
-    `.trim().replace(/\s+/g, ' ');
-    
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  };
 
   const abrirAdjunto = async (solicitud) => {
     try {
@@ -287,13 +261,11 @@ const GestionSolicitudes = () => {
                         {/* Colaborador */}
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant shrink-0">
-                              <img 
-                                src={getAvatar(sol)} 
-                                alt="Avatar Colaborador" 
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
+                            <EmployeeAvatar
+                              employee={sol}
+                              alt={`Foto de perfil de ${sol.nombres}`}
+                              className="w-10 h-10 rounded-full border border-outline-variant shrink-0 text-xs"
+                            />
                             <div>
                               <p className="font-bold text-on-surface text-sm">
                                 {sol.nombres} {sol.apellidos}

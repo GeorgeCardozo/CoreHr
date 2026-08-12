@@ -202,8 +202,11 @@ test('los soportes adjuntos no se exponen a empleados ajenos', async () => {
   assert.equal(result.response.status, 403);
 });
 
-test('una foto de directorio se puede solicitar sin exponer información de perfil', async () => {
-  const result = await fetch(`${baseUrl}/api/empleados/2/foto`);
-  assert.equal(result.status, 404);
-  assert.deepEqual(await result.json(), { message: 'La foto de perfil no está disponible.' });
+test('las fotos del directorio requieren autenticación y entregan un 404 limpio si no existen', async () => {
+  const unauthorized = await fetch(`${baseUrl}/api/empleados/2/foto`);
+  assert.equal(unauthorized.status, 401);
+
+  const authorized = await request('/api/empleados/2/foto', { token: sign(2) });
+  assert.equal(authorized.response.status, 404);
+  assert.deepEqual(authorized.body, { message: 'La foto de perfil no está disponible.' });
 });

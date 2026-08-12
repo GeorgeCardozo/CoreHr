@@ -26,7 +26,7 @@ test('la foto se persiste en PostgreSQL y se recupera con su MIME', async (t) =>
         updateParams = params;
         return { rows: [{ id: 9, nombres: 'Eva', apellidos: 'Prueba', foto_perfil: '/api/empleados/9/foto' }] };
       }
-      if (normalized.startsWith('SELECT foto_perfil_datos')) {
+      if (normalized.startsWith('SELECT foto_perfil_datos, foto_perfil_tipo')) {
         return { rows: [{ foto_perfil_datos: bytes, foto_perfil_tipo: 'image/png' }] };
       }
       throw new Error(`Consulta no esperada: ${normalized}`);
@@ -51,6 +51,22 @@ test('la foto se persiste en PostgreSQL y se recupera con su MIME', async (t) =>
   await obtenerFotoPerfil({ params: { id: '9' } }, downloadRes);
   assert.deepEqual(downloadRes.body, bytes);
   assert.equal(downloadRes.headers['Content-Type'], 'image/png');
+});
+
+test('un empleado sin BYTEA obtiene un 404 limpio', async (t) => {
+  const dbMock = { query: async () => ({ rows: [{ foto_perfil_datos: null, foto_perfil_tipo: null }] }) };
+  require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: dbMock };
+  delete require.cache[empleadoPath];
+  const { obtenerFotoPerfil } = require(empleadoPath);
+  t.after(() => {
+    delete require.cache[empleadoPath];
+    if (originalDb) require.cache[dbPath] = originalDb;
+    else delete require.cache[dbPath];
+  });
+  const response = createResponse();
+  await obtenerFotoPerfil({ params: { id: '9' } }, response);
+  assert.equal(response.statusCode, 404);
+  assert.deepEqual(response.body, { message: 'La foto de perfil no está disponible.' });
 });
 
 test('un soporte persistido solo se entrega a su titular y conserva el MIME', async (t) => {

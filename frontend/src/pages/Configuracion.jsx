@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { obtenerPerfil, actualizarEmpleado, subirFotoPerfil, getAssetUrl } from '../services/api';
+import { obtenerPerfil, actualizarEmpleado, subirFotoPerfil } from '../services/api';
 import { toast } from 'react-hot-toast';
 import CambiarContrasena from '../components/CambiarContrasena';
+import EmployeeAvatar from '../components/EmployeeAvatar';
 
 const Configuracion = () => {
   const { user, setUser, logout } = useAuth();
@@ -77,12 +78,12 @@ const Configuracion = () => {
     setSaving(true);
     try {
       // 1. Si hay una nueva foto seleccionada, subirla primero
-      let updatedFotoUrl = profile.foto_perfil;
+      let tieneFotoPerfil = profile.tiene_foto_perfil;
       if (selectedFile) {
         const formData = new FormData();
         formData.append('foto', selectedFile);
-        const uploadResponse = await subirFotoPerfil(formData);
-        updatedFotoUrl = uploadResponse.foto_perfil;
+        await subirFotoPerfil(formData);
+        tieneFotoPerfil = true;
       }
 
       // 2. Actualizar el resto de la información
@@ -111,7 +112,7 @@ const Configuracion = () => {
         profile: {
           ...prev.profile,
           ...response.empleado,
-          foto_perfil: updatedFotoUrl
+          tiene_foto_perfil: tieneFotoPerfil
         }
       }));
 
@@ -119,7 +120,7 @@ const Configuracion = () => {
       setProfile(prev => ({
         ...prev,
         ...response.empleado,
-        foto_perfil: updatedFotoUrl
+        tiene_foto_perfil: tieneFotoPerfil
       }));
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -138,42 +139,10 @@ const Configuracion = () => {
     toast('Módulo en desarrollo para la Fase 2', { icon: '🚧' });
   };
 
-  const getAvatar = () => {
-    if (previewUrl) return previewUrl;
-    if (profile?.foto_perfil) {
-      return getAssetUrl(profile.foto_perfil);
-    }
-    const nombres = profile?.nombres || user?.correo?.split('@')[0] || 'C';
-    const apellidos = profile?.apellidos || 'Colaborador';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-    
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8', 
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <rect width="100" height="100" fill="${color}" />
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
-          ${iniciales}
-        </text>
-      </svg>
-    `.trim().replace(/\s+/g, ' ');
-    
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  };
-
   const activeUserName = user?.profile
     ? `${user.profile.nombres} ${user.profile.apellidos || ''}`
     : (user?.correo ? user.correo.split('@')[0] : 'Alex Rivera');
   const activeUserRole = user?.profile?.cargo || (user?.rol_id === 1 ? 'Gestión Humana' : 'Colaborador');
-  const activeUserAvatar = user?.profile?.foto_perfil
-    ? getAssetUrl(user.profile.foto_perfil)
-    : getAvatar();
-
   const pageContent = (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
       {/* Sub-Navegación Lateral Interna */}
@@ -250,10 +219,11 @@ const Configuracion = () => {
                 {/* Visualizador de Avatar */}
                 <div className="relative group">
                   <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-outline-variant group-hover:border-primary/45 transition-colors shadow-lg bg-surface-container-low">
-                    <img 
-                      src={getAvatar()} 
-                      alt="Avatar de perfil" 
-                      className="w-full h-full object-cover"
+                    <EmployeeAvatar
+                      employee={profile}
+                      previewSrc={previewUrl}
+                      alt="Avatar de perfil"
+                      className="w-full h-full text-xl"
                     />
                   </div>
                 </div>
@@ -428,10 +398,10 @@ const Configuracion = () => {
                 <span className="text-[10px] text-on-surface-variant font-semibold">{activeUserRole}</span>
               </div>
               <div className="w-9 h-9 rounded-full bg-surface-container overflow-hidden ring-2 ring-outline-variant">
-                <img 
+                <EmployeeAvatar
+                  employee={user?.profile}
                   alt="Foto del usuario actual"
-                  className="w-full h-full object-cover" 
-                  src={activeUserAvatar} 
+                  className="w-full h-full text-xs"
                 />
               </div>
             </div>

@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import api, { getAssetUrl, actualizarEmpleado, actualizarPrivacidadPerfil } from '../services/api';
+import api, { actualizarEmpleado, actualizarPrivacidadPerfil } from '../services/api';
 import { toast } from 'react-hot-toast';
 import NotificationBell from '../components/NotificationBell';
 import logoSolo from '../assets/LogoSolo.png';
+import EmployeeAvatar from '../components/EmployeeAvatar';
 
 const VALOR_OCULTO = '••••••••';
 
@@ -239,33 +240,6 @@ const PerfilEmpleado = () => {
     toast('Módulo en desarrollo para la Fase 2', { icon: '🚧' });
   };
 
-  const getAvatar = (emp) => {
-    if (emp?.foto_perfil) {
-      return getAssetUrl(emp.foto_perfil);
-    }
-    const nombres = emp?.nombres || 'C';
-    const apellidos = emp?.apellidos || 'Colaborador';
-    const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
-
-    const colores = [
-      '#008080', '#004d40', '#0f766e', '#0369a1', '#1d4ed8',
-      '#6d28d9', '#a21caf', '#be185d', '#b91c1c', '#c2410c'
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colores.length;
-    const color = colores[index];
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <rect width="100" height="100" fill="${color}" />
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-size="38" font-weight="bold" fill="#ffffff">
-          ${iniciales}
-        </text>
-      </svg>
-    `.trim().replace(/\s+/g, ' ');
-
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  };
-
   const getFechaFormateadaStepper = (fechaStr) => {
     if (!fechaStr) return '';
     return new Date(fechaStr).toLocaleDateString('es-CO', {
@@ -297,7 +271,7 @@ const PerfilEmpleado = () => {
     setEditError('');
 
     try {
-      let nuevaFoto = profile?.foto_perfil;
+      let tieneFotoPerfil = profile?.tiene_foto_perfil;
 
       // Si hay un archivo seleccionado, subirlo primero
       if (selectedFile) {
@@ -307,12 +281,12 @@ const PerfilEmpleado = () => {
           formData.append('empleado_id', profile.id);
         }
 
-        const uploadRes = await api.put('/empleados/perfil/foto', formData, {
+        await api.put('/empleados/perfil/foto', formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
         });
-        nuevaFoto = uploadRes.data.foto_perfil;
+        tieneFotoPerfil = true;
 
         // Solo el perfil propio debe modificar el avatar global de la sesión.
         if (esPropioPerfil) {
@@ -320,7 +294,7 @@ const PerfilEmpleado = () => {
             ...prev,
             profile: {
               ...prev.profile,
-              foto_perfil: nuevaFoto
+              tiene_foto_perfil: true
             }
           }));
         }
@@ -365,7 +339,7 @@ const PerfilEmpleado = () => {
         tipo_genero: editTipoGenero,
         fecha_nacimiento: editFechaNacimiento,
         telefono: editTelefono,
-        foto_perfil: nuevaFoto,
+        tiene_foto_perfil: tieneFotoPerfil,
         correo_personal: editCorreoPersonal,
         contacto_emergencia: editContactoEmergencia,
         parentesco: editParentesco,
@@ -455,11 +429,11 @@ const PerfilEmpleado = () => {
             aria-label="Ver mi perfil"
             className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer hover:opacity-80 transition-opacity"
           >
-              <img
+              <EmployeeAvatar
+                employee={user?.profile}
                 alt="Foto de mi perfil"
-              className="w-full h-full object-cover"
-              src={getAvatar(user?.profile)}
-            />
+                className="w-full h-full text-xs"
+              />
           </button>
         </div>
       </header>
@@ -549,13 +523,11 @@ const PerfilEmpleado = () => {
             {/* Profile Content */}
             <div className="px-8 pb-4 flex flex-col md:flex-row items-end justify-between gap-6 -mt-12 relative z-10 w-full">
               <div className="flex flex-col md:flex-row items-end gap-6">
-                <div className="w-32 h-32 rounded-full ring-4 ring-surface-container-lowest shadow-md overflow-hidden bg-surface-container-lowest">
-                  <img
-                    alt="Perfil del colaborador"
-                    className="w-full h-full object-cover"
-                    src={getAvatar(profile)}
-                  />
-                </div>
+                <EmployeeAvatar
+                  employee={profile}
+                  alt={`Foto de perfil de ${profile?.nombres || 'colaborador'}`}
+                  className="w-32 h-32 rounded-full ring-4 ring-surface-container-lowest shadow-md bg-surface-container-lowest text-3xl"
+                />
                 <div className="pb-2">
                   <h1 className="font-headline-lg text-headline-lg text-on-surface mb-1">
                     {profile?.nombres} {profile?.apellidos}

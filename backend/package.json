@@ -6,6 +6,7 @@
   "scripts": {
     "start": "npm run migrate && node server.js",
     "migrate": "node src/config/setupDbSchema.js",
+    "migrate-profile-images": "node scripts/migrate-profile-images-to-db.js",
     "dev": "nodemon server.js",
     "test": "node --test src/utils/*.test.js tests/*.test.js"
   },
