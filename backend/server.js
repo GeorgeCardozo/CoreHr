@@ -33,7 +33,7 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
     return callback(new Error('Origen no permitido por la política CORS'));
   },
-  methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type'],
   maxAge: 86400,
 }));

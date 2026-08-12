@@ -31,7 +31,7 @@ router.put('/perfil/foto', verifyToken, upload.single('foto'), subirFotoPerfil);
 // Las fotos forman parte del directorio interno y requieren una sesion valida.
 router.get('/:id/foto', verifyToken, obtenerFotoPerfil);
 
-// Ruta: PUT /api/empleados/:id (Protegida por JWT y Administrador/Propio)
+// PATCH es el contrato parcial actual. PUT se conserva para clientes anteriores.
 router.put('/:id', verifyToken, verificarAdminOPropioEmpleado, actualizarEmpleado);
 router.patch('/:id', verifyToken, verificarAdminOPropioEmpleado, actualizarEmpleado);
 

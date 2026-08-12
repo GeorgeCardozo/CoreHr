@@ -38,6 +38,34 @@ const employee = {
 };
 
 let profilePrivacy = { telefono: true };
+let mutableEmployee = { ...employee };
+const updateQueries = [];
+
+const updateClient = {
+  query: async (sql, params = []) => {
+    const normalized = sql.replace(/\s+/g, ' ').trim();
+    updateQueries.push({ sql: normalized, params: [...params] });
+
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(normalized)) return { rows: [] };
+    if (normalized.startsWith('SELECT e.*, u.correo')) return { rows: [{ ...mutableEmployee }] };
+    if (normalized.startsWith('UPDATE usuarios SET correo')) {
+      mutableEmployee.correo = params[0];
+      return { rows: [] };
+    }
+    if (normalized.startsWith('UPDATE usuarios SET activo')) return { rows: [] };
+    if (normalized.startsWith('UPDATE empleados SET')) {
+      const setClause = normalized.match(/^UPDATE empleados SET (.+) WHERE id = \$\d+ RETURNING \*$/)?.[1];
+      assert.ok(setClause, `Consulta UPDATE inesperada: ${normalized}`);
+      const fields = setClause.split(',').map((assignment) => assignment.trim().split(' = ')[0]);
+      fields.forEach((field, index) => {
+        mutableEmployee[field] = params[index];
+      });
+      return { rows: [{ ...mutableEmployee }] };
+    }
+    throw new Error(`Consulta inesperada en la prueba de actualización: ${normalized}`);
+  },
+  release: () => {},
+};
 
 const dbMock = {
   query: async (sql, params = []) => {
@@ -51,6 +79,9 @@ const dbMock = {
       profilePrivacy = JSON.parse(params[0]);
       return { rows: [{ privacidad_perfil: profilePrivacy }] };
     }
+    if (normalized.startsWith('SELECT usuario_id FROM empleados WHERE id')) {
+      return Number(params[0]) === employee.id ? { rows: [{ usuario_id: employee.usuario_id }] } : { rows: [] };
+    }
     if (normalized.includes('FROM empleados e') && (normalized.includes('WHERE e.id = $1') || normalized.includes('WHERE e.usuario_id = $1'))) {
       return { rows: [employee] };
     }
@@ -61,7 +92,7 @@ const dbMock = {
     }
     return { rows: [] };
   },
-  pool: { connect: async () => { throw new Error('La prueba HTTP no debe abrir una conexión real a PostgreSQL.'); } },
+  pool: { connect: async () => updateClient },
 };
 
 require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: dbMock };
@@ -105,20 +136,90 @@ test('health valida la conexión de la API con PostgreSQL', async () => {
   assert.deepEqual(result.body, { status: 'ok', database: 'connected' });
 });
 
-test('CORS permite el frontend estable y rechaza orígenes no configurados', async () => {
-  const allowed = await fetch(`${baseUrl}/api/auth/me`, {
+test('CORS permite el preflight PATCH con los encabezados de Axios y rechaza otros orígenes', async () => {
+  const allowed = await fetch(`${baseUrl}/api/empleados/176`, {
     method: 'OPTIONS',
     headers: {
       Origin: 'https://core-hr-five.vercel.app',
-      'Access-Control-Request-Method': 'GET',
-      'Access-Control-Request-Headers': 'Authorization',
+      'Access-Control-Request-Method': 'PATCH',
+      'Access-Control-Request-Headers': 'authorization,content-type',
     },
   });
   assert.equal(allowed.status, 204);
   assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://core-hr-five.vercel.app');
+  assert.notEqual(allowed.headers.get('access-control-allow-origin'), '*');
+
+  const allowedMethods = (allowed.headers.get('access-control-allow-methods') || '').split(',').map((method) => method.trim());
+  for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']) assert.ok(allowedMethods.includes(method));
+
+  const allowedHeaders = (allowed.headers.get('access-control-allow-headers') || '').toLowerCase().split(',').map((header) => header.trim());
+  assert.ok(allowedHeaders.includes('authorization'));
+  assert.ok(allowedHeaders.includes('content-type'));
 
   const denied = await fetch(`${baseUrl}/health`, { headers: { Origin: 'https://sitio-no-autorizado.example' } });
   assert.equal(denied.status, 403);
+});
+
+test('PATCH de empleados llega al controlador, aplica permisos y actualiza solo los campos enviados', async (t) => {
+  mutableEmployee = { ...employee };
+  updateQueries.length = 0;
+
+  await t.test('el colaborador actualiza únicamente su teléfono con JWT', async () => {
+    const result = await request('/api/empleados/2', {
+      method: 'PATCH', token: sign(2), body: { telefono: '3001234567' },
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.empleado.telefono, '3001234567');
+    assert.equal(mutableEmployee.departamento, employee.departamento);
+    assert.ok(updateQueries.some(({ sql }) => sql === 'UPDATE empleados SET telefono = $1 WHERE id = $2 RETURNING *'));
+  });
+
+  await t.test('el colaborador actualiza su género', async () => {
+    const result = await request('/api/empleados/2', {
+      method: 'PATCH', token: sign(2), body: { tipo_genero: 'Femenino' },
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.empleado.tipo_genero, 'Femenino');
+  });
+
+  await t.test('el colaborador actualiza su fecha de nacimiento', async () => {
+    const result = await request('/api/empleados/2', {
+      method: 'PATCH', token: sign(2), body: { fecha_nacimiento: '1992-07-15' },
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.empleado.fecha_nacimiento, '1992-07-15');
+  });
+
+  await t.test('el administrador actualiza un campo administrativo', async () => {
+    const result = await request('/api/empleados/2', {
+      method: 'PATCH', token: sign(1), body: { departamento: 'Gestión Humana' },
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.empleado.departamento, 'Gestión Humana');
+  });
+
+  await t.test('una solicitud sin JWT es rechazada', async () => {
+    const result = await request('/api/empleados/2', {
+      method: 'PATCH', body: { telefono: '3000000000' },
+    });
+    assert.equal(result.response.status, 401);
+  });
+
+  await t.test('otro colaborador no puede actualizar el perfil', async () => {
+    const result = await request('/api/empleados/2', {
+      method: 'PATCH', token: sign(3), body: { telefono: '3000000000' },
+    });
+    assert.equal(result.response.status, 403);
+  });
+
+  await t.test('un colaborador no puede modificar campos administrativos', async () => {
+    const previousDepartment = mutableEmployee.departamento;
+    const result = await request('/api/empleados/2', {
+      method: 'PATCH', token: sign(2), body: { departamento: 'Sistemas' },
+    });
+    assert.equal(result.response.status, 403);
+    assert.equal(mutableEmployee.departamento, previousDepartment);
+  });
 });
 
 test('las rutas administrativas rechazan solicitudes sin autenticación', async () => {
