@@ -18,6 +18,12 @@ const getJwtSecret = () => {
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
+const isAllowedGooglePayload = (payload, allowedDomain) => {
+  const correo = normalizeEmail(payload?.email);
+  const domain = String(allowedDomain || '').replace(/^@/, '').trim().toLowerCase();
+  return Boolean(payload?.email_verified && correo && domain && correo.split('@')[1] === domain);
+};
+
 const createToken = (usuario, expiresIn = process.env.JWT_EXPIRES_IN || '8h') => jwt.sign(
   {
     id: usuario.id,
@@ -121,7 +127,7 @@ const listarUsuarios = async (req, res) => {
 };
 
 const loginConGoogle = async (req, res) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID?.trim();
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const tokenGoogle = req.body?.tokenGoogle;
 
   if (!clientId) {
@@ -137,9 +143,8 @@ const loginConGoogle = async (req, res) => {
     const payload = ticket.getPayload();
     const correo = normalizeEmail(payload?.email);
     const allowedDomain = String(process.env.GOOGLE_ALLOWED_DOMAIN || 'gla.edu.co').replace(/^@/, '').toLowerCase();
-    const emailDomain = correo.split('@')[1];
 
-    if (!payload?.email_verified || !correo || emailDomain !== allowedDomain) {
+    if (!isAllowedGooglePayload(payload, allowedDomain)) {
       return res.status(403).json({ message: 'Acceso denegado. Usa un correo institucional verificado.' });
     }
 
@@ -233,4 +238,5 @@ module.exports = {
   obtenerSesion,
   createToken,
   normalizeEmail,
+  isAllowedGooglePayload,
 };

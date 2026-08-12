@@ -5,24 +5,18 @@ const { crearNotificacionInterna } = require('./notificacionController');
 const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
 
 const MAX_PAGE_SIZE = 200;
+const REQUEST_COLUMNS = `
+  s.id, s.empleado_id, s.tipo_solicitud, s.fecha_inicio, s.fecha_fin,
+  s.motivo, s.archivo_adjunto, s.estado, s.comentarios_admin, s.fecha_creacion`;
 
 const buildSolicitudResponse = (solicitud) => ({
-  ...solicitud,
+  ...Object.fromEntries(Object.entries(solicitud).filter(([key]) => !['archivo_datos', 'archivo_tipo'].includes(key))),
   archivo_url: solicitud.archivo_adjunto ? `/api/solicitudes/${solicitud.id}/adjunto` : null,
 });
 
 const formatDate = (value) => {
   const date = String(value || '').slice(0, 10).split('-');
   return date.length === 3 ? `${date[2]}/${date[1]}/${date[0]}` : '';
-};
-
-const removeUploadedFile = async (filePath) => {
-  if (!filePath) return;
-  try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('No fue posible limpiar el soporte cargado:', error);
-  }
 };
 
 const parsePagination = (query) => ({
@@ -38,7 +32,6 @@ const crearSolicitud = async (req, res) => {
 
   if (!requestType || requestType.length > 100 || !reason || reason.length > 2000 ||
     !isValidIsoDate(fecha_inicio) || !isValidIsoDate(endDate) || !isDateRangeValid(fecha_inicio, endDate)) {
-    await removeUploadedFile(req.file?.path);
     return res.status(400).json({ message: 'Los datos de la solicitud o su rango de fechas no son válidos.' });
   }
 
@@ -49,14 +42,20 @@ const crearSolicitud = async (req, res) => {
     );
     const employee = employeeResult.rows[0];
     if (!employee) {
-      await removeUploadedFile(req.file?.path);
       return res.status(404).json({ message: 'No se encontró un perfil de colaborador activo para este usuario.' });
     }
 
     const result = await db.query(
-      `INSERT INTO solicitudes (empleado_id, tipo_solicitud, fecha_inicio, fecha_fin, motivo, archivo_adjunto)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [employee.id, requestType, fecha_inicio, endDate, reason, req.file?.filename || null]
+      `INSERT INTO solicitudes (
+         empleado_id, tipo_solicitud, fecha_inicio, fecha_fin, motivo,
+         archivo_adjunto, archivo_datos, archivo_tipo
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, empleado_id, tipo_solicitud, fecha_inicio, fecha_fin, motivo,
+                 archivo_adjunto, estado, comentarios_admin, fecha_creacion`,
+      [
+        employee.id, requestType, fecha_inicio, endDate, reason,
+        req.file?.originalname || null, req.file?.buffer || null, req.file?.mimetype || null,
+      ]
     );
 
     // Las notificaciones no alteran la creación de la solicitud si fallan.
@@ -72,7 +71,6 @@ const crearSolicitud = async (req, res) => {
 
     return res.status(201).json({ message: 'Solicitud enviada con éxito.', solicitud: buildSolicitudResponse(result.rows[0]) });
   } catch (error) {
-    await removeUploadedFile(req.file?.path);
     console.error('Error al crear solicitud:', error);
     return res.status(500).json({ message: 'Error interno del servidor al procesar la solicitud.' });
   }
@@ -84,7 +82,7 @@ const listarSolicitudes = async (req, res) => {
   try {
     if (req.user.rol_id === 1) {
       const result = await db.query(
-        `SELECT s.*, e.nombres, e.apellidos, e.documento_identidad, e.foto_perfil, e.departamento, c.cargo
+        `SELECT ${REQUEST_COLUMNS}, e.nombres, e.apellidos, e.documento_identidad, e.foto_perfil, e.departamento, c.cargo
          FROM solicitudes s
          JOIN empleados e ON s.empleado_id = e.id
          LEFT JOIN LATERAL (
@@ -101,7 +99,7 @@ const listarSolicitudes = async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT s.* FROM solicitudes s
+      `SELECT ${REQUEST_COLUMNS} FROM solicitudes s
        JOIN empleados e ON e.id = s.empleado_id
        WHERE e.usuario_id = $1
        ORDER BY s.fecha_creacion DESC
@@ -133,7 +131,9 @@ const actualizarEstadoSolicitud = async (req, res) => {
       `UPDATE solicitudes s SET estado = $1, comentarios_admin = $2
        FROM empleados e
        WHERE s.id = $3 AND e.id = s.empleado_id
-       RETURNING s.*, e.usuario_id, e.nombres`,
+       RETURNING s.id, s.empleado_id, s.tipo_solicitud, s.fecha_inicio, s.fecha_fin,
+                 s.motivo, s.archivo_adjunto, s.estado, s.comentarios_admin, s.fecha_creacion,
+                 e.usuario_id, e.nombres`,
       [estado, comments, requestId]
     );
     const solicitud = result.rows[0];
@@ -162,7 +162,7 @@ const descargarAdjunto = async (req, res) => {
   }
   try {
     const result = await db.query(
-      `SELECT s.archivo_adjunto, e.usuario_id
+      `SELECT s.archivo_adjunto, s.archivo_datos, s.archivo_tipo, e.usuario_id
        FROM solicitudes s JOIN empleados e ON e.id = s.empleado_id
        WHERE s.id = $1`, [requestId]
     );
@@ -172,6 +172,15 @@ const descargarAdjunto = async (req, res) => {
       return res.status(403).json({ message: 'No tienes permiso para consultar este soporte.' });
     }
 
+    if (solicitud.archivo_datos) {
+      res.setHeader('Content-Type', solicitud.archivo_tipo || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${path.basename(solicitud.archivo_adjunto).replace(/["\\]/g, '_')}"`);
+      res.setHeader('Content-Security-Policy', 'sandbox');
+      res.setHeader('Cache-Control', 'private, no-store');
+      return res.send(solicitud.archivo_datos);
+    }
+
+    // Compatibilidad con soportes creados antes de la migración a PostgreSQL.
     const filename = path.basename(solicitud.archivo_adjunto);
     const uploadDir = path.resolve(__dirname, '../../uploads/solicitudes');
     const filePath = path.join(uploadDir, filename);

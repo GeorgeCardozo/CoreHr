@@ -8,8 +8,10 @@ const serverPath = require.resolve('../server');
 const originalDb = require.cache[dbPath];
 const originalServer = require.cache[serverPath];
 const originalJwtSecret = process.env.JWT_SECRET;
+const originalCorsOrigins = process.env.CORS_ORIGINS;
 process.env.JWT_SECRET = 'test-secret-for-http-integration-with-at-least-32-characters';
 process.env.NODE_ENV = 'test';
+process.env.CORS_ORIGINS = 'https://core-hr-five.vercel.app';
 
 const users = {
   1: { id: 1, correo: 'admin@gla.edu.co', rol_id: 1, activo: true, token_version: 0, debe_cambiar_contrasena: false },
@@ -54,7 +56,9 @@ const dbMock = {
     }
     if (normalized.includes('SELECT e.*, u.correo')) return { rows: [] };
     if (normalized.startsWith('INSERT INTO descargas_certificados')) return { rows: [] };
-    if (normalized.includes('SELECT s.archivo_adjunto, e.usuario_id')) return { rows: [{ archivo_adjunto: 'soporte-inexistente.pdf', usuario_id: 2 }] };
+    if (normalized.includes('SELECT s.archivo_adjunto, s.archivo_datos, s.archivo_tipo, e.usuario_id')) {
+      return { rows: [{ archivo_adjunto: 'soporte-inexistente.pdf', archivo_datos: null, archivo_tipo: null, usuario_id: 2 }] };
+    }
     return { rows: [] };
   },
   pool: { connect: async () => { throw new Error('La prueba HTTP no debe abrir una conexión real a PostgreSQL.'); } },
@@ -82,6 +86,8 @@ test.after(async () => {
   else delete require.cache[dbPath];
   if (originalJwtSecret === undefined) delete process.env.JWT_SECRET;
   else process.env.JWT_SECRET = originalJwtSecret;
+  if (originalCorsOrigins === undefined) delete process.env.CORS_ORIGINS;
+  else process.env.CORS_ORIGINS = originalCorsOrigins;
 });
 
 const request = async (path, { method = 'GET', token, body } = {}) => {
@@ -92,6 +98,28 @@ const request = async (path, { method = 'GET', token, body } = {}) => {
   const type = response.headers.get('content-type') || '';
   return { response, body: type.includes('application/pdf') ? Buffer.from(await response.arrayBuffer()) : await response.json() };
 };
+
+test('health valida la conexión de la API con PostgreSQL', async () => {
+  const result = await request('/health');
+  assert.equal(result.response.status, 200);
+  assert.deepEqual(result.body, { status: 'ok', database: 'connected' });
+});
+
+test('CORS permite el frontend estable y rechaza orígenes no configurados', async () => {
+  const allowed = await fetch(`${baseUrl}/api/auth/me`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'https://core-hr-five.vercel.app',
+      'Access-Control-Request-Method': 'GET',
+      'Access-Control-Request-Headers': 'Authorization',
+    },
+  });
+  assert.equal(allowed.status, 204);
+  assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://core-hr-five.vercel.app');
+
+  const denied = await fetch(`${baseUrl}/health`, { headers: { Origin: 'https://sitio-no-autorizado.example' } });
+  assert.equal(denied.status, 403);
+});
 
 test('las rutas administrativas rechazan solicitudes sin autenticación', async () => {
   const result = await request('/api/empleados', { method: 'POST', body: {} });
@@ -172,4 +200,10 @@ test('un empleado puede generar su propio PDF y no el de otra persona', async ()
 test('los soportes adjuntos no se exponen a empleados ajenos', async () => {
   const result = await request('/api/solicitudes/2/adjunto', { token: sign(3) });
   assert.equal(result.response.status, 403);
+});
+
+test('una foto de directorio se puede solicitar sin exponer información de perfil', async () => {
+  const result = await fetch(`${baseUrl}/api/empleados/2/foto`);
+  assert.equal(result.status, 404);
+  assert.deepEqual(await result.json(), { message: 'La foto de perfil no está disponible.' });
 });

@@ -1,9 +1,13 @@
 import axios from 'axios';
 
-const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
+const normalizedApiUrl = rawApiUrl?.replace(/\/+$/, '');
+const configuredApiUrl = normalizedApiUrl && !normalizedApiUrl.endsWith('/api')
+  ? `${normalizedApiUrl}/api`
+  : normalizedApiUrl;
 export const API_BASE_URL = configuredApiUrl || '/api';
 export const API_ORIGIN = configuredApiUrl
-  ? configuredApiUrl.replace(/\/api\/?$/, '')
+  ? configuredApiUrl.replace(/\/api$/, '')
   : '';
 
 export const getAssetUrl = (assetPath) => {
@@ -26,6 +30,19 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const authAttemptPaths = ['/auth/login', '/auth/google', '/auth/cambiar-contrasena'];
+    const isAuthenticationAttempt = authAttemptPaths.some((path) => error.config?.url?.includes(path));
+    if (error.response?.status === 401 && localStorage.getItem('token') && !isAuthenticationAttempt) {
+      localStorage.removeItem('token');
+      if (window.location.pathname !== '/login') window.location.assign('/login');
+    }
     return Promise.reject(error);
   }
 );

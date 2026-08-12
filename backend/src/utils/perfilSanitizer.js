@@ -40,6 +40,8 @@ const INTERNAL_FIELDS = [
   'activo',
   'descargas_mes_actual',
   'max_descargas_mes',
+  'foto_perfil_datos',
+  'foto_perfil_tipo',
 ];
 
 const DEFAULT_PROFILE_PRIVACY = Object.freeze(
@@ -70,6 +72,11 @@ const sanitizePerfilForViewer = (perfil, requesterUserId, requesterRolId) => {
   const isAdmin = Number(requesterRolId) === 1;
   const isOwner = Number(perfil.usuario_id) === Number(requesterUserId);
   const privacy = normalizeProfilePrivacy(perfil.privacidad_perfil);
+
+  // Los binarios nunca forman parte de respuestas JSON; solo se sirven por
+  // el endpoint específico de foto.
+  delete sanitized.foto_perfil_datos;
+  delete sanitized.foto_perfil_tipo;
 
   if (!isAdmin) {
     for (const field of ADMIN_ONLY_EMPLOYMENT_FIELDS) delete sanitized[field];

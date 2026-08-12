@@ -47,6 +47,15 @@ npm --prefix backend audit --omit=dev --audit-level=high
 npm --prefix frontend audit --omit=dev --audit-level=high
 ```
 
+## Despliegue en Neon, Render y Vercel
+
+- Neon: configure `DATABASE_URL` en Render. El arranque ejecuta una migración idempotente que agrega estructura faltante y nunca elimina registros. Para aplicar solo la migración de archivos persistentes manualmente: `psql "$DATABASE_URL" -f backend/migrations/001_persistent_files.sql`.
+- Render: use el `render.yaml` de la raíz, establezca `JWT_SECRET`, `DATABASE_URL`, `CORS_ORIGINS=https://core-hr-five.vercel.app` y `GOOGLE_CLIENT_ID`. La comprobación `/health` valida también la conexión con PostgreSQL.
+- Vercel: importe el repositorio con `frontend` como Root Directory, use `npm run build`, `dist` como Output Directory y configure `VITE_API_URL=https://corehr-g5kz.onrender.com/api` y `VITE_GOOGLE_CLIENT_ID`. `frontend/vercel.json` resuelve las rutas SPA.
+- Google Cloud: registre `https://core-hr-five.vercel.app` como origen JavaScript autorizado y utilice el mismo Client ID web en frontend y backend. El backend limita las cuentas a `GOOGLE_ALLOWED_DOMAIN`.
+
+Las fotos de perfil y soportes nuevos se guardan en PostgreSQL para sobrevivir reinicios de Render. Los archivos antiguos que ya se perdieron del disco efímero no pueden reconstruirse y deben cargarse nuevamente.
+
 ## Lista mínima antes de producción local
 
 - Definir `NODE_ENV=production`, `CORS_ORIGINS` con los orígenes reales y un `JWT_SECRET` único. No reutilizar valores de ejemplo.

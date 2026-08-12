@@ -4,6 +4,7 @@ const path = require('path');
 const { ensureSchema } = require('./schema');
 const { validatePassword } = require('../utils/passwordPolicy');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+const { connectionConfig } = require('./databaseOptions');
 
 const databaseName = process.env.DB_DATABASE || 'core_rrhh';
 const connectionOptions = {
@@ -18,21 +19,27 @@ const seedAdminIfConfigured = async (client) => {
   const password = process.env.SEED_ADMIN_PASSWORD;
 
   if (!email && !password) return;
-  const passwordValidation = validatePassword(password);
-  if (!email || !password || !passwordValidation.valid) {
-    throw new Error(`SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD son obligatorios; ${passwordValidation.message || 'la contraseña no es válida.'}`);
-  }
+  if (!email) throw new Error('SEED_ADMIN_EMAIL es obligatorio cuando se configura el seed.');
 
-  const hash = await bcrypt.hash(password, 12);
-  const result = await client.query(
-    `INSERT INTO usuarios (correo, contrasena, rol_id)
-     VALUES ($1, $2, 1)
-     ON CONFLICT (correo) DO NOTHING
-     RETURNING id`,
-    [email, hash]
-  );
-  const userId = result.rows[0]?.id || (await client.query('SELECT id FROM usuarios WHERE correo = $1', [email])).rows[0]?.id;
-  await client.query('UPDATE usuarios SET activo = TRUE, debe_cambiar_contrasena = TRUE WHERE correo = $1', [email]);
+  const existing = await client.query('SELECT id FROM usuarios WHERE correo = $1', [email]);
+  let userId = existing.rows[0]?.id;
+
+  // El seed solo crea la cuenta inicial. Nunca debe reactivar una cuenta ni
+  // restaurar el indicador de contraseña temporal en despliegues posteriores.
+  if (!userId) {
+    const passwordValidation = validatePassword(password);
+    if (!password || !passwordValidation.valid) {
+      throw new Error(`SEED_ADMIN_PASSWORD es obligatoria para crear la cuenta inicial; ${passwordValidation.message || 'la contraseña no es válida.'}`);
+    }
+    const hash = await bcrypt.hash(password, 12);
+    const result = await client.query(
+      `INSERT INTO usuarios (correo, contrasena, rol_id, debe_cambiar_contrasena)
+       VALUES ($1, $2, 1, TRUE)
+       RETURNING id`,
+      [email, hash]
+    );
+    userId = result.rows[0].id;
+  }
 
   if (userId) {
     await client.query(
@@ -45,21 +52,26 @@ const seedAdminIfConfigured = async (client) => {
 };
 
 const main = async () => {
-  const bootstrapClient = new Client({ ...connectionOptions, database: 'postgres' });
-  try {
-    await bootstrapClient.connect();
-    const databaseResult = await bootstrapClient.query('SELECT 1 FROM pg_database WHERE datname = $1', [databaseName]);
-    if (databaseResult.rows.length === 0) {
-      await bootstrapClient.query(`CREATE DATABASE "${databaseName.replace(/"/g, '""')}"`);
-      console.log(`Base de datos "${databaseName}" creada exitosamente.`);
-    } else {
-      console.log(`La base de datos "${databaseName}" ya existe.`);
+  const usesManagedDatabase = Boolean(process.env.DATABASE_URL?.trim());
+  if (!usesManagedDatabase) {
+    const bootstrapClient = new Client({ ...connectionOptions, database: 'postgres' });
+    try {
+      await bootstrapClient.connect();
+      const databaseResult = await bootstrapClient.query('SELECT 1 FROM pg_database WHERE datname = $1', [databaseName]);
+      if (databaseResult.rows.length === 0) {
+        await bootstrapClient.query(`CREATE DATABASE "${databaseName.replace(/"/g, '""')}"`);
+        console.log(`Base de datos "${databaseName}" creada exitosamente.`);
+      } else {
+        console.log(`La base de datos "${databaseName}" ya existe.`);
+      }
+    } finally {
+      await bootstrapClient.end();
     }
-  } finally {
-    await bootstrapClient.end();
   }
 
-  const client = new Client({ ...connectionOptions, database: databaseName });
+  const client = new Client(usesManagedDatabase
+    ? connectionConfig()
+    : { ...connectionOptions, database: databaseName });
   try {
     await client.connect();
     await ensureSchema(client);
@@ -73,4 +85,6 @@ const main = async () => {
   }
 };
 
-main();
+if (require.main === module) main();
+
+module.exports = { main, seedAdminIfConfigured };

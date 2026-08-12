@@ -1,10 +1,4 @@
-const crypto = require('crypto');
-const fs = require('fs');
 const multer = require('multer');
-const path = require('path');
-
-const uploadDir = path.join(__dirname, '../../uploads/perfiles');
-fs.mkdirSync(uploadDir, { recursive: true });
 
 const extensionByMime = {
   'image/jpeg': '.jpg',
@@ -12,13 +6,10 @@ const extensionByMime = {
   'image/webp': '.webp',
 };
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, `foto-${crypto.randomUUID()}${extensionByMime[file.mimetype] || ''}`),
-});
-
 const upload = multer({
-  storage,
+  // Render usa un filesystem efímero. La memoria solo conserva el archivo
+  // durante la petición; el controlador lo persiste inmediatamente en Neon.
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     if (extensionByMime[file.mimetype]) return cb(null, true);
     return cb(new Error('Solo se permiten archivos de imagen JPG, PNG o WEBP.'), false);

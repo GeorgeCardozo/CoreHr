@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPerfil, actualizarPrivacidadPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil, crearEmpleadosMasivo, crearAdministrador } = require('../controllers/empleadoController');
+const { obtenerPerfil, actualizarPrivacidadPerfil, crearEmpleado, listarEmpleados, actualizarEmpleado, eliminarEmpleado, generarCertificado, obtenerDirectorio, subirFotoPerfil, obtenerFotoPerfil, crearEmpleadosMasivo, crearAdministrador } = require('../controllers/empleadoController');
 const { verifyToken, verificarAdmin, verificarAdminOPropioEmpleado } = require('../middlewares/auth');
 const upload = require('../middlewares/upload');
 
@@ -27,6 +27,9 @@ router.post('/', verifyToken, verificarAdmin, crearEmpleado);
 
 // Ruta: PUT /api/empleados/perfil/foto (Protegida por JWT)
 router.put('/perfil/foto', verifyToken, upload.single('foto'), subirFotoPerfil);
+
+// Las fotos no contienen datos contractuales y se consultan dentro del portal.
+router.get('/:id/foto', obtenerFotoPerfil);
 
 // Ruta: PUT /api/empleados/:id (Protegida por JWT y Administrador/Propio)
 router.put('/:id', verifyToken, verificarAdminOPropioEmpleado, actualizarEmpleado);

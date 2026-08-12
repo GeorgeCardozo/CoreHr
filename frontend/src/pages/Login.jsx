@@ -5,6 +5,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import logoSolo from '../assets/LogoSolo.png';
 
 const Login = () => {
+  const googleAuthEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim());
   const [correo, setCorreo] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [error, setError] = useState('');
@@ -174,7 +175,7 @@ const Login = () => {
                 )}
               </button>
 
-              <GoogleLogin
+              {googleAuthEnabled && <GoogleLogin
                 onSuccess={async (credentialResponse) => {
                   try {
                     setError('');
@@ -193,7 +194,7 @@ const Login = () => {
                   console.error('El inicio de sesión con Google falló');
                   setError('El inicio de sesión con Google falló. Inténtelo de nuevo.');
                 }}
-              />
+              />}
 
             </form>
 

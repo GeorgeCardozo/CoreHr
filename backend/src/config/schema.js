@@ -108,6 +108,8 @@ const ensureSchema = async (client) => {
     telefono_emergencia: 'VARCHAR(50)',
     direccion: 'VARCHAR(255)',
     foto_perfil: 'VARCHAR(255)',
+    foto_perfil_datos: 'BYTEA',
+    foto_perfil_tipo: 'VARCHAR(100)',
     privacidad_perfil: `JSONB NOT NULL DEFAULT '{}'::jsonb`,
     activo: 'BOOLEAN NOT NULL DEFAULT TRUE'
   };
@@ -171,6 +173,8 @@ const ensureSchema = async (client) => {
     )
   `);
   await ensureColumn(client, 'solicitudes', 'archivo_adjunto', 'VARCHAR(255)');
+  await ensureColumn(client, 'solicitudes', 'archivo_datos', 'BYTEA');
+  await ensureColumn(client, 'solicitudes', 'archivo_tipo', 'VARCHAR(100)');
   await ensureColumn(client, 'solicitudes', 'estado', `VARCHAR(50) NOT NULL DEFAULT 'Pendiente'`);
   await ensureColumn(client, 'solicitudes', 'comentarios_admin', 'TEXT');
   await ensureColumn(client, 'solicitudes', 'fecha_creacion', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP');

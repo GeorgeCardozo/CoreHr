@@ -16,7 +16,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const profileUploadsPath = path.join(__dirname, 'uploads', 'perfiles');
 const configuredOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 const allowedOrigins = configuredOrigins.length > 0
   ? configuredOrigins
@@ -29,9 +29,13 @@ if (process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    const normalizedOrigin = origin?.replace(/\/$/, '');
+    if (!origin || allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
     return callback(new Error('Origen no permitido por la política CORS'));
   },
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'Content-Type'],
+  maxAge: 86400,
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
@@ -61,7 +65,15 @@ app.use('/api/notificaciones', notificacionRoutes);
 app.get('/', (req, res) => {
   res.json({ name: 'CoreRRHH API', status: 'online', timestamp: new Date().toISOString() });
 });
-app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/health', async (req, res) => {
+  try {
+    await require('./src/config/db').query('SELECT 1');
+    return res.status(200).json({ status: 'ok', database: 'connected' });
+  } catch (error) {
+    console.error('Error en health check:', error);
+    return res.status(503).json({ status: 'degraded', database: 'unavailable' });
+  }
+});
 
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada.' }));
 

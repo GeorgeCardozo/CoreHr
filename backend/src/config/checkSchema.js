@@ -1,14 +1,9 @@
 const { Pool } = require('pg');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+const { connectionConfig } = require('./databaseOptions');
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 5432,
-});
+const pool = new Pool(connectionConfig({ includePoolOptions: true }));
 
 const main = async () => {
   try {
@@ -34,4 +29,6 @@ const main = async () => {
   }
 };
 
-main();
+if (require.main === module) main();
+
+module.exports = { main };

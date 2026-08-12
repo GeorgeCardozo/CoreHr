@@ -1,6 +1,4 @@
 const bcrypt = require('bcrypt');
-const fs = require('fs/promises');
-const path = require('path');
 const db = require('../config/db');
 const { buildCertificatePdf } = require('../services/certificateService');
 const { isDateRangeValid, isValidIsoDate } = require('../utils/dateValidation');
@@ -13,6 +11,7 @@ const { validatePassword } = require('../utils/passwordPolicy');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_BULK_SIZE = 500;
+const stripStoredPhoto = ({ foto_perfil_datos, foto_perfil_tipo, ...employee }) => employee;
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const trimValue = (value) => typeof value === 'string' ? value.trim() : value;
@@ -88,15 +87,6 @@ const profileQuery = (whereClause) => `
     LIMIT 1
   ) c ON TRUE
   WHERE ${whereClause}`;
-
-const removeUploadedFile = async (filePath) => {
-  if (!filePath) return;
-  try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('No fue posible limpiar el archivo cargado:', error);
-  }
-};
 
 const obtenerPerfil = async (req, res) => {
   const requesterUserId = Number(req.user.id);
@@ -200,7 +190,7 @@ const createEmployeeAccount = async (client, data, roleId) => {
       values.contacto_emergencia, values.parentesco, values.telefono_emergencia, values.direccion,
     ]
   );
-  return { employee: employeeResult.rows[0] };
+  return { employee: stripStoredPhoto(employeeResult.rows[0]) };
 };
 
 const crearEmpleado = async (req, res) => {
@@ -243,7 +233,7 @@ const listarEmpleados = async (req, res) => {
       ) c ON TRUE
       WHERE ($1::boolean OR e.activo = TRUE)
       ORDER BY e.activo DESC, e.id ASC`, [includeInactive]);
-    return res.status(200).json({ message: 'Empleados obtenidos exitosamente.', empleados: result.rows });
+    return res.status(200).json({ message: 'Empleados obtenidos exitosamente.', empleados: result.rows.map(stripStoredPhoto) });
   } catch (error) {
     console.error('Error en listarEmpleados:', error);
     return res.status(500).json({ message: 'Error interno del servidor al listar empleados.' });
@@ -321,7 +311,7 @@ const actualizarEmpleado = async (req, res) => {
       ]
     );
     await client.query('COMMIT');
-    return res.status(200).json({ message: 'Empleado actualizado exitosamente.', empleado: result.rows[0] });
+    return res.status(200).json({ message: 'Empleado actualizado exitosamente.', empleado: stripStoredPhoto(result.rows[0]) });
   } catch (error) {
     await client.query('ROLLBACK');
     if (error.code === '23505') return res.status(409).json({ message: 'El documento de identidad o correo ya están registrados.' });
@@ -443,24 +433,58 @@ const subirFotoPerfil = async (req, res) => {
   const requesterRoleId = Number(req.user.rol_id);
   const targetEmployeeId = req.body?.empleado_id || req.query?.empleado_id;
   if (targetEmployeeId && (!/^\d+$/.test(String(targetEmployeeId)) || requesterRoleId !== 1)) {
-    await removeUploadedFile(req.file.path);
     return res.status(403).json({ message: 'No tienes permisos para cambiar la foto de otro colaborador.' });
   }
 
   try {
-    const photoPath = `/uploads/perfiles/${req.file.filename}`;
+    const employeeLookup = targetEmployeeId
+      ? await db.query('SELECT id FROM empleados WHERE id = $1 AND activo = TRUE', [Number(targetEmployeeId)])
+      : await db.query('SELECT id FROM empleados WHERE usuario_id = $1 AND activo = TRUE', [req.user.id]);
+    const employee = employeeLookup.rows[0];
+    if (!employee) return res.status(404).json({ message: 'Empleado no encontrado o inactivo.' });
+
+    // La versión evita que el navegador siga mostrando una foto anterior en caché.
+    const photoPath = `/api/empleados/${employee.id}/foto?v=${Date.now()}`;
     const result = targetEmployeeId
-      ? await db.query('UPDATE empleados SET foto_perfil = $1 WHERE id = $2 AND activo = TRUE RETURNING id, nombres, apellidos, foto_perfil', [photoPath, Number(targetEmployeeId)])
-      : await db.query('UPDATE empleados SET foto_perfil = $1 WHERE usuario_id = $2 AND activo = TRUE RETURNING id, nombres, apellidos, foto_perfil', [photoPath, req.user.id]);
-    if (!result.rows[0]) {
-      await removeUploadedFile(req.file.path);
-      return res.status(404).json({ message: 'Empleado no encontrado o inactivo.' });
-    }
+      ? await db.query(
+        `UPDATE empleados SET foto_perfil = $1, foto_perfil_datos = $2, foto_perfil_tipo = $3
+         WHERE id = $4 AND activo = TRUE RETURNING id, nombres, apellidos, foto_perfil`,
+        [photoPath, req.file.buffer, req.file.mimetype, Number(targetEmployeeId)]
+      )
+      : await db.query(
+        `UPDATE empleados SET foto_perfil = $1, foto_perfil_datos = $2, foto_perfil_tipo = $3
+         WHERE usuario_id = $4 AND activo = TRUE RETURNING id, nombres, apellidos, foto_perfil`,
+        [photoPath, req.file.buffer, req.file.mimetype, req.user.id]
+      );
     return res.status(200).json({ message: 'Foto de perfil actualizada exitosamente.', foto_perfil: photoPath, empleado: result.rows[0] });
   } catch (error) {
-    await removeUploadedFile(req.file.path);
     console.error('Error en subirFotoPerfil:', error);
     return res.status(500).json({ message: 'Error interno del servidor al subir foto de perfil.' });
+  }
+};
+
+const obtenerFotoPerfil = async (req, res) => {
+  const employeeId = Number(req.params.id);
+  if (!Number.isInteger(employeeId) || employeeId <= 0) {
+    return res.status(400).json({ message: 'El identificador del empleado no es válido.' });
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT foto_perfil_datos, foto_perfil_tipo
+       FROM empleados WHERE id = $1 AND activo = TRUE`,
+      [employeeId]
+    );
+    const photo = result.rows[0];
+    if (!photo?.foto_perfil_datos) return res.status(404).json({ message: 'La foto de perfil no está disponible.' });
+
+    res.setHeader('Content-Type', photo.foto_perfil_tipo || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Content-Disposition', 'inline');
+    return res.send(photo.foto_perfil_datos);
+  } catch (error) {
+    console.error('Error en obtenerFotoPerfil:', error);
+    return res.status(500).json({ message: 'Error interno del servidor al consultar la foto.' });
   }
 };
 
@@ -548,6 +572,7 @@ module.exports = {
   generarCertificado,
   obtenerDirectorio,
   subirFotoPerfil,
+  obtenerFotoPerfil,
   crearEmpleadosMasivo,
   crearAdministrador,
 };

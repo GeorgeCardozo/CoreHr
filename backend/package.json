@@ -4,7 +4,8 @@
   "description": "CoreRRHH - Sistema On-Premise para gestión de personal y automatización de documentos",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "npm run migrate && node server.js",
+    "migrate": "node src/config/setupDbSchema.js",
     "dev": "nodemon server.js",
     "test": "node --test src/utils/*.test.js tests/*.test.js"
   },
